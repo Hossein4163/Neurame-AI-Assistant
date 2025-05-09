@@ -262,8 +262,8 @@ This plugin is licensed under the [GPLv2 or later](https://www.gnu.org/licenses/
 
 For issues, feature requests, or questions:
 
-- Create an issue on the [GitHub repository](https://github.com/your-repo/neurame-ai-assistant) (if applicable).
-- Contact the author at [your-email@example.com](mailto:your-email@example.com).
+- Create an issue on the [GitHub repository](https://github.com/Hossein4163/Neurame-AI-Assistant) (if applicable).
+- Contact the author at [ramestudio.yzd@gmail.com](mailto:ramestudio.yzd@gmail.com).
 
 ---
 
