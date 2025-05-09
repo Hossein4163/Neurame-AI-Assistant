@@ -3,7 +3,7 @@
 Plugin Name: Neurame AI Assistant
 Plugin URI: https://ramestudio.com/Neurame
 Description: افزونه‌ای برای پیشنهاد دوره، مدیریت کودکان، و گزارش مربی با هوش مصنوعی
-Version: 1.0.0
+Version: 1.2.0
 Author: Rame Studio
 Author URI: https://ramestudio.com
 License: GPL-2.0+
