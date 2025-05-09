@@ -1,0 +1,72 @@
+
+msgid ""
+msgstr ""
+"Project-Id-Version: neurame-ai-assistant\n"
+"Language: fa_IR\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Trainer Reports"
+msgstr "گزارش‌های مربی"
+
+msgid "Children Management"
+msgstr "مدیریت کودکان"
+
+msgid "Please log in to your account."
+msgstr "لطفاً وارد حساب کاربری خود شوید."
+
+msgid "No children have been registered."
+msgstr "هیچ کودکی ثبت نشده است."
+
+msgid "Information saved."
+msgstr "اطلاعات ذخیره شد."
+
+msgid "Error saving information."
+msgstr "خطا در ذخیره اطلاعات."
+
+msgid "Get course recommendation using AI"
+msgstr "دریافت پیشنهاد دوره با هوش مصنوعی"
+
+msgid "Select a child"
+msgstr "یک کودک انتخاب کنید"
+
+msgid "First select a course"
+msgstr "ابتدا یک دوره انتخاب کنید"
+
+msgid "Select a user"
+msgstr "یک کاربر انتخاب کنید"
+
+msgid "No users found for this course"
+msgstr "کاربری برای این دوره یافت نشد"
+
+msgid "No children found for this user"
+msgstr "کودکی برای این کاربر یافت نشد"
+
+msgid "Error fetching reports"
+msgstr "خطا در دریافت گزارش‌ها"
+
+msgid "No progress recorded."
+msgstr "روند پیشرفتی ثبت نشده است."
+
+msgid "No course was recommended."
+msgstr "هیچ دوره‌ای پیشنهاد نشد."
+
+msgid "Total courses: %d"
+msgstr "تعداد دوره‌ها: %d"
+
+msgid "Total trainers: %d"
+msgstr "تعداد مربیان: %d"
+
+msgid "Total trainer reports: %d"
+msgstr "تعداد گزارش‌های مربی: %d"
+
+msgid "Total registered children: %d"
+msgstr "تعداد کودکان ثبت‌شده: %d"
+
+msgid "Total users: %d"
+msgstr "تعداد کاربران: %d"
+
+msgid "Total recommendations: %d"
+msgstr "تعداد پیشنهادات: %d"
+
+msgid "Average age of children: %.1f"
+msgstr "میانگین سن کودکان: %.1f"
