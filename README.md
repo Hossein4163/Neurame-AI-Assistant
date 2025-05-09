@@ -53,7 +53,7 @@ To use **Neurame AI Assistant**, ensure the following requirements are met:
    <?php
    /*
    Plugin Name: Neurame AI Assistant
-   Plugin URI: https://example.com
+   Plugin URI: https://ramestudio.com/neurame-ai-assistant
    Description: A plugin for managing children, reports, and AI-powered course recommendations
    Version: 1.2.0
    Author: Your Name
