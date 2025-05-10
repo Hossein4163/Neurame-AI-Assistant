@@ -82,7 +82,7 @@ waitForNeurameVars((vars) => {
                 fd.append('parent_goals', textarea.value.trim());
 
                 try {
-                    const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
+                    const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
                     const json = await resp.json();
 
                     if (json.success) {
@@ -110,7 +110,7 @@ waitForNeurameVars((vars) => {
             fd.append('child_id', childId);
 
             try {
-                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
+                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
                 const json = await resp.json();
 
                 const container = document.getElementById('reports-list');
@@ -148,7 +148,7 @@ waitForNeurameVars((vars) => {
             fd.append('child_id', childId);
 
             try {
-                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
+                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
                 const json = await resp.json();
 
                 const container = document.getElementById('progress-report');
@@ -180,11 +180,11 @@ waitForNeurameVars((vars) => {
                                         r: {
                                             beginAtZero: true,
                                             max: 100,
-                                            ticks: {stepSize: 20}
+                                            ticks: { stepSize: 20 }
                                         },
                                     },
                                     plugins: {
-                                        legend: {position: 'top'},
+                                        legend: { position: 'top' },
                                         title: {
                                             display: true,
                                             text: 'روند پیشرفت مهارت‌ها'
@@ -228,7 +228,7 @@ waitForNeurameVars((vars) => {
             fd.append('parent_goals', parentGoals);
 
             try {
-                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
+                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
                 const json = await resp.json();
 
                 const responseContainer = document.getElementById('neurame-ai-response');
@@ -313,7 +313,7 @@ waitForNeurameVars((vars) => {
             fd.append('user_id', userId);
 
             try {
-                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
+                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
                 const json = await resp.json();
 
                 if (!json.success) {
