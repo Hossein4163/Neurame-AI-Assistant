@@ -212,20 +212,20 @@ waitForNeurameVars((vars) => {
         }
 
         // دریافت پیشنهاد هوش مصنوعی
-        async function fetchAIRecommendation(childId, parentGoals) {
-            const fd = new FormData();
-            fd.append('action', 'neurame_ai_recommendation');
-            fd.append('nonce', aiNonce);
-            fd.append('parent_goals', parentGoals);
+        async function fetchAIRecommendation(childId, parentGoals, ajaxUrl, aiNonce) {
+            const formData = new FormData();
+            formData.append('action', 'neurame_ai_recommendation');
+            formData.append('nonce', aiNonce);
+            formData.append('parent_goals', parentGoals);
             if (childId) {
-                fd.append('child_id', childId);
+                formData.append('child_id', childId);
             } else {
-                fd.append('user_id', userId);
+                formData.append('user_id', neurameVars.user_id || 0);
             }
 
             try {
-                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
-                const json = await resp.json();
+                const response = await fetch(ajaxUrl, {method: 'POST', body: formData});
+                const json = await response.json();
 
                 const responseContainer = document.getElementById('neurame-ai-response');
                 if (!responseContainer) {
@@ -234,19 +234,19 @@ waitForNeurameVars((vars) => {
                 }
 
                 if (json.success) {
-                    responseContainer.innerHTML = json.data.html;
+                    responseContainer.innerHTML = json.data.html || '<p>دوره‌های پیشنهادی دریافت شد.</p>';
                     showToast('دوره‌های پیشنهادی با موفقیت دریافت شدند.', 'success');
                 } else {
-                    responseContainer.innerHTML = `<p class="text-red-600">${json.data?.message || 'خطا در دریافت پیشنهاد از هوش مصنوعی.'}</p>`;
+                    responseContainer.innerHTML = `<p class="text-red-600">${json.data?.message || 'خطا در دریافت پیشنهاد.'}</p>`;
                     showToast(json.data?.message || 'خطا در دریافت پیشنهاد از هوش مصنوعی.', 'error');
                 }
             } catch (err) {
                 console.error('AI Recommendation fetch error:', err);
                 const responseContainer = document.getElementById('neurame-ai-response');
                 if (responseContainer) {
-                    responseContainer.innerHTML = `<p class="text-red-600">خطا در دریافت پیشنهاد دوره از هوش مصنوعی: ${err.message}</p>`;
+                    responseContainer.innerHTML = `<p class="text-red-600">خطا در ارتباط با سرور: ${err.message}</p>`;
                 }
-                showToast('خطا در ارتباط با هوش مصنوعی.', 'error');
+                showToast('خطا در ارتباط با سرور.', 'error');
             }
         }
 
@@ -275,7 +275,7 @@ waitForNeurameVars((vars) => {
         const recommendButton = document.getElementById('neurame-ai-recommend');
         if (recommendButton) {
             recommendButton.addEventListener('click', async () => {
-                const form = document.getElementById('neurame-ai-recommendation-form') || document.getElementById('neurame-info-form');
+                const form = document.getElementById('neurame-info-form');
                 if (!form) {
                     showToast('فرم پیشنهادات هوش مصنوعی پیدا نشد.', 'error');
                     return;
@@ -283,24 +283,22 @@ waitForNeurameVars((vars) => {
 
                 const parentGoalsInput = form.querySelector('textarea[name="parent_goals"]');
                 const childSelect = form.querySelector('select[name="child_select"]');
+                const neurameVars = window.neurame_vars || {};
+                const ajaxUrl = neurameVars.ajax_url || '/wp-admin/admin-ajax.php';
+                const aiNonce = neurameVars.ai_nonce || '';
+
                 let childId = '';
-                if (childSelect) {
+                if (childSelect && neurameVars.is_parent_mode) {
                     childId = childSelect.value.trim();
                 }
 
-                if (!parentGoalsInput) {
-                    showToast('فیلدهای مورد نیاز پیدا نشدند.', 'error');
-                    return;
-                }
-
-                const parentGoals = parentGoalsInput.value.trim();
-
-                if (!parentGoals || (childSelect && !childId)) {
+                if (!parentGoalsInput || !parentGoalsInput.value.trim() || (neurameVars.is_parent_mode && !childId)) {
                     showToast('لطفاً همه‌ی فیلدها را تکمیل کنید.', 'error');
                     return;
                 }
 
-                await fetchAIRecommendation(childId, parentGoals);
+                const parentGoals = parentGoalsInput.value.trim();
+                await fetchAIRecommendation(childId, parentGoals, ajaxUrl, aiNonce);
             });
         }
 
