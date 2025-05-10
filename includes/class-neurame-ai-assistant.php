@@ -1078,7 +1078,6 @@ class NeurameAIAssistant
         $parent_mode = !empty($settings['neurame_parent_mode']);
         $user_id = get_current_user_id();
 
-        // ساختار سه‌ستونه
         echo '<div class="neurame-combined-dashboard grid gap-8 lg:grid-cols-3 p-12">';
 
         // ستون اصلی (چپ)
@@ -1090,37 +1089,46 @@ class NeurameAIAssistant
 
         // ستون پنل (راست)
         echo '<div class="lg:col-span-1 space-y-8">';
-
-        // بخش انتخاب
         echo '<div class="bg-white rounded-lg p-6">';
         echo '<h3 class="text-lg font-semibold mb-4">' . esc_html__('انتخاب:', 'neurame-ai-assistant') . '</h3>';
 
         if ($parent_mode) {
-            // حالت والدینی: انتخاب فرزند
             $children = get_user_meta($user_id, 'neurame_children', true);
             $children = is_array($children) ? $children : [];
             echo '<select name="report_child_select" id="report-child-select" class="w-full p-2 border rounded">';
             echo '<option value="">' . esc_html__('یک کودک انتخاب کنید', 'neurame-ai-assistant') . '</option>';
             foreach ($children as $index => $child) {
                 printf(
-                    '<option value="%s">%s</option>',
+                    '<option value="%s">%s (سن: %s)</option>',
                     esc_attr($user_id . '_' . $index),
-                    esc_html($child['name'] . ' (سن: ' . $child['age'] . ')')
+                    esc_html($child['name']),
+                    esc_html($child['age'])
                 );
             }
             echo '</select>';
         } else {
-            // حالت غیر والدینی: نمایش نام کاربر جاری
-            $current = wp_get_current_user();
-            printf(
-                '<p>%s: %s</p>',
-                esc_html__('کاربر جاری', 'neurame-ai-assistant'),
-                esc_html($current->display_name)
-            );
+            $users = get_users(['fields' => ['ID', 'display_name']]);
+            echo '<select name="report_child_select" id="report-child-select" class="w-full p-2 border rounded">';
+            echo '<option value="">' . esc_html__('یک کاربر انتخاب کنید', 'neurame-ai-assistant') . '</option>';
+            foreach ($users as $user) {
+                $children = get_user_meta($user->ID, 'neurame_children', true);
+                if (is_array($children)) {
+                    foreach ($children as $index => $child) {
+                        printf(
+                            '<option value="%s_%s">%s - %s (سن: %s)</option>',
+                            esc_attr($user->ID),
+                            esc_attr($index),
+                            esc_html($user->display_name),
+                            esc_html($child['name']),
+                            esc_html($child['age'])
+                        );
+                    }
+                }
+            }
+            echo '</select>';
         }
         echo '</div>';
 
-        // بخش گزارش‌ها
         echo '<div class="bg-white rounded-lg p-6">';
         echo '<h3 class="text-lg font-semibold mb-4">' . esc_html__('گزارش‌ها', 'neurame-ai-assistant') . '</h3>';
         echo '<div id="reports-list" class="reports-list">';
@@ -1128,7 +1136,6 @@ class NeurameAIAssistant
         echo '</div>';
         echo '</div>';
 
-        // بخش گزارش هوشمند روند پیشرفت
         echo '<div class="bg-white rounded-lg p-6">';
         echo '<h3 class="text-lg font-semibold mb-4">' . esc_html__('گزارش هوشمند روند پیشرفت', 'neurame-ai-assistant') . '</h3>';
         echo '<div id="progress-report" class="progress-report">';
@@ -1137,7 +1144,7 @@ class NeurameAIAssistant
         echo '</div>';
 
         echo '</div>';
-        echo '</div>'; // پایان داشبورد
+        echo '</div>';
     }
 
     public function render_profile()
@@ -1196,11 +1203,26 @@ class NeurameAIAssistant
         }
 
         $user_id = get_current_user_id();
-        $children = get_user_meta($user_id, 'neurame_children', true);
-        $children = is_array($children) ? $children : [];
+        $settings = get_option('neurame_settings', []);
+        $parent_mode = !empty($settings['neurame_parent_mode']);
+        $children = [];
 
-        // استفاده از متد لاگ‌گذاری سفارشی
-        $this->log('🚸 render_children_management → loaded children: ' . print_r($children, true));
+        if ($parent_mode) {
+            $children = get_user_meta($user_id, 'neurame_children', true);
+            $children = is_array($children) ? $children : [];
+        } else {
+            if (current_user_can('manage_options')) {
+                $users = get_users(['fields' => ['ID']]);
+                foreach ($users as $u) {
+                    $user_children = get_user_meta($u->ID, 'neurame_children', true);
+                    if (is_array($user_children)) {
+                        foreach ($user_children as $index => $child) {
+                            $children[$u->ID . '_' . $index] = $child;
+                        }
+                    }
+                }
+            }
+        }
 
         $success_message = isset($_GET['success']) && $_GET['success'] === 'children_updated'
             ? esc_html__('اطلاعات کودکان با موفقیت ذخیره شد.', 'neurame-ai-assistant')
