@@ -76,8 +76,12 @@ class NeurameAIAssistant
 
     public function register_shortcodes()
     {
+        $settings = get_option('neurame_settings');
+        $parent_mode = isset($settings['neurame_parent_mode']) && $settings['neurame_parent_mode'];
+
         add_shortcode('neurame_profile', [$this, 'render_profile']);
-        add_shortcode('neurame_children', [$this, 'render_children_management']);
+        if ($parent_mode)
+            add_shortcode('neurame_children', [$this, 'render_children_management']);
         add_shortcode('neurame_smart_assistant', [$this, 'render_smart_assistant']);
         add_shortcode('neurame_child_progress', [$this, 'render_child_progress']);
     }
@@ -156,26 +160,49 @@ class NeurameAIAssistant
         }
 
         $user_id = get_current_user_id();
-        $children = get_user_meta($user_id, 'neurame_children', true);
-        $children = is_array($children) ? $children : [];
-
-        if (empty($children)) {
-            return '<p>' . esc_html__('هیچ کودکی ثبت نشده است.', 'neurame-ai-assistant') . ' <a href="' . esc_url(wc_get_page_permalink('myaccount')) . '" class="text-blue-600 hover:underline">' . esc_html__('اینجا کلیک کنید تا کودک خود را ثبت کنید.', 'neurame-ai-assistant') . '</a></p>';
-        }
+        $settings = get_option('neurame_settings');
+        $parent_mode = isset($settings['neurame_parent_mode']) && $settings['neurame_parent_mode'];
 
         ob_start();
         ?>
         <div class="neurame-child-progress space-y-6 mt-6">
-            <?php foreach ($children as $index => $child) : ?>
+            <?php if ($parent_mode): ?>
+                <?php
+                $children = get_user_meta($user_id, 'neurame_children', true);
+                $children = is_array($children) ? $children : [];
+                if (empty($children)) {
+                    return '<p>' . esc_html__('هیچ کودکی ثبت نشده است.', 'neurame-ai-assistant') . ' <a href="' . esc_url(wc_get_page_permalink('myaccount')) . '" class="text-blue-600 hover:underline">' . esc_html__('اینجا کلیک کنید تا کودک خود را ثبت کنید.', 'neurame-ai-assistant') . '</a></p>';
+                }
+                foreach ($children as $index => $child):
+                    ?>
+                    <div class="bg-gray-100 p-4 rounded-lg shadow-sm">
+                        <h3 class="text-lg font-semibold mb-2"><?php echo esc_html($child['name']); ?></h3>
+                        <p><?php echo esc_html__('سن: ', 'neurame-ai-assistant') . esc_html($child['age']); ?></p>
+                        <p><?php echo esc_html__('علاقه‌مندی‌ها: ', 'neurame-ai-assistant') . esc_html($child['interests']); ?></p>
+                        <?php
+                        $progress = get_user_meta($user_id, 'child_progress_analysis_' . ($user_id . '_' . $index), true);
+                        if ($progress && is_array($progress)) {
+                            echo '<div class="mt-4">';
+                            echo '<p class="font-medium">' . esc_html__('تحلیل مهارت‌ها:', 'neurame-ai-assistant') . '</p>';
+                            echo '<ul class="list-disc pl-5">';
+                            foreach ($progress['skills'] as $skill => $score) {
+                                echo '<li>' . esc_html($skill) . ': ' . esc_html($score) . '%</li>';
+                            }
+                            echo '</ul>';
+                            echo '<p class="mt-2">' . esc_html__('خلاصه تحلیل:', 'neurame-ai-assistant') . '</p>';
+                            echo '<p>' . esc_html($progress['ai_summary'] ?? '-') . '</p>';
+                            echo '</div>';
+                        } else {
+                            echo '<p class="text-gray-500">' . esc_html__('روند پیشرفتی ثبت نشده است.', 'neurame-ai-assistant') . '</p>';
+                        }
+                        ?>
+                    </div>
+                <?php endforeach; ?>
+            <?php else: ?>
                 <div class="bg-gray-100 p-4 rounded-lg shadow-sm">
-                    <h3 class="text-lg font-semibold mb-2"><?php echo esc_html($child['name']); ?></h3>
-
-                    <p><?php echo esc_html__('سن: ', 'neurame-ai-assistant') . esc_html($child['age']); ?></p>
-                    <p><?php echo esc_html__('علاقه‌مندی‌ها: ', 'neurame-ai-assistant') . esc_html($child['interests']); ?></p>
-
-                    <!-- تحلیل روند پیشرفت -->
+                    <h3 class="text-lg font-semibold mb-2"><?php echo esc_html(get_userdata($user_id)->display_name); ?></h3>
                     <?php
-                    $progress = get_user_meta($user_id, 'child_progress_analysis', true);
+                    $progress = get_user_meta($user_id, 'user_progress_analysis', true);
                     if ($progress && is_array($progress)) {
                         echo '<div class="mt-4">';
                         echo '<p class="font-medium">' . esc_html__('تحلیل مهارت‌ها:', 'neurame-ai-assistant') . '</p>';
@@ -188,11 +215,11 @@ class NeurameAIAssistant
                         echo '<p>' . esc_html($progress['ai_summary'] ?? '-') . '</p>';
                         echo '</div>';
                     } else {
-                        echo '<p class="text-gray-500">' . esc_html__('روند پیشرفتی ثبت نشده است.', 'neurame-ai-assistant') . '</p>';
+                        echo '<p class="text-gray-500">' . esc_html__('روند پیشرفتی برای شما ثبت نشده است.', 'neurame-ai-assistant') . '</p>';
                     }
                     ?>
                 </div>
-            <?php endforeach; ?>
+            <?php endif; ?>
         </div>
         <?php
         return ob_get_clean();
@@ -265,22 +292,22 @@ class NeurameAIAssistant
             wp_enqueue_script('neurame-child', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-child.js', ['jquery'], '1.2.0', true);
             wp_enqueue_script('neurame-report', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-report.js', ['jquery'], '1.2.0', true);
 
+            $settings = get_option('neurame_settings');
             $neurame_vars = [
                 'ajax_url' => admin_url('admin-ajax.php'),
                 'nonce_load_buyers' => wp_create_nonce('neurame_load_buyers'),
                 'nonce_get_children' => wp_create_nonce('neurame_get_children'),
-                'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'), // اضافه کردن nonce
+                'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'),
                 'ai_nonce' => wp_create_nonce('neurame_ai_recommendation'),
                 'nonce_get_reports' => wp_create_nonce('neurame_get_reports'),
                 'nonce_fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info'),
                 'user_id' => get_current_user_id(),
                 'is_admin' => current_user_can('manage_options') ? true : false,
+                'is_parent_mode' => isset($settings['neurame_parent_mode']) && $settings['neurame_parent_mode'] ? true : false,
             ];
 
             wp_localize_script('neurame-child', 'neurame_vars', $neurame_vars);
             wp_localize_script('neurame-report', 'neurame_vars', $neurame_vars);
-
-            wp_add_inline_script('neurame-report', 'console.log("Neurame Vars Loaded (frontend):", ' . wp_json_encode($neurame_vars) . ');');
         }
     }
 
@@ -656,61 +683,58 @@ class NeurameAIAssistant
      */
     public function handle_fetch_ai_recommendation()
     {
-        // چک کردن نانس
         if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'neurame_ai_recommendation')) {
             $this->log('❌ handle_fetch_ai_recommendation: Invalid nonce');
             wp_send_json_error(['message' => __('خطای امنیتی.', 'neurame-ai-assistant')], 403);
         }
 
-        // دریافت و اعتبارسنجی ورودی‌ها
-        $user_id = absint($_POST['user_id'] ?? 0);
-        $child_index = absint($_POST['child_index'] ?? -1);
+        $user_id = absint($_POST['user_id'] ?? get_current_user_id());
         $parent_goals = sanitize_textarea_field($_POST['parent_goals'] ?? '');
+        $settings = get_option('neurame_settings');
+        $parent_mode = isset($settings['neurame_parent_mode']) && $settings['neurame_parent_mode'];
 
-        // اگر user_id و child_index جداگانه ارسال نشده باشند، از child_id استفاده کن
-        if (!$user_id || $child_index < 0) {
-            $child_id = sanitize_text_field($_POST['child_id'] ?? '');
-            if ($child_id) {
-                list($user_id, $child_index) = array_map('absint', explode('_', $child_id));
-                $this->log("📝 handle_fetch_ai_recommendation: Parsed child_id=$child_id to user_id=$user_id, child_index=$child_index");
-            }
-        }
-
-        // اعتبارسنجی اولیه
-        if (!$user_id || $child_index < 0 || empty($parent_goals)) {
-            $this->log('❌ handle_fetch_ai_recommendation: Missing required fields (user_id=' . $user_id . ', child_index=' . $child_index . ', parent_goals=' . substr($parent_goals, 0, 50) . ')');
+        if (!$user_id || empty($parent_goals)) {
+            $this->log('❌ handle_fetch_ai_recommendation: Missing required fields');
             wp_send_json_error(['message' => __('لطفاً همه‌ی فیلدها را صحیح پر کنید.', 'neurame-ai-assistant')], 400);
         }
 
-        // دریافت اطلاعات کودکان
-        $children = get_user_meta($user_id, 'neurame_children', true);
-        if (!is_array($children) || !isset($children[$child_index])) {
-            $this->log('❌ handle_fetch_ai_recommendation: Invalid child data for user_id=' . $user_id . ', child_index=' . $child_index);
-            wp_send_json_error(['message' => __('اطلاعات کودک یافت نشد.', 'neurame-ai-assistant')], 404);
+        $data = ['parent_goals' => $parent_goals];
+
+        if ($parent_mode) {
+            $child_index = absint($_POST['child_index'] ?? -1);
+            if ($child_index < 0) {
+                $child_id = sanitize_text_field($_POST['child_id'] ?? '');
+                if ($child_id) {
+                    list($user_id, $child_index) = array_map('absint', explode('_', $child_id));
+                }
+            }
+
+            $children = get_user_meta($user_id, 'neurame_children', true);
+            if (!is_array($children) || !isset($children[$child_index])) {
+                $this->log('❌ handle_fetch_ai_recommendation: Invalid child data');
+                wp_send_json_error(['message' => __('اطلاعات کودک یافت نشد.', 'neurame-ai-assistant')], 404);
+            }
+
+            $child = $children[$child_index];
+            $validation = $this->validate_child_data($child);
+            if (!$validation['is_valid']) {
+                $this->log('❌ Child Data Validation Failed: ' . $validation['message']);
+                wp_send_json_error(['message' => $validation['message']], 400);
+            }
+
+            $data['child_age'] = $child['age'];
+            $data['child_interests'] = $child['interests'];
+            $data['child_name'] = $child['name'];
+        } else {
+            $user = get_userdata($user_id);
+            $data['user_name'] = $user->display_name;
+            $data['user_interests'] = get_user_meta($user_id, 'neurame_user_interests', true) ?: 'علایق عمومی';
         }
-
-        $child = $children[$child_index];
-
-        // اعتبارسنجی داده‌های کودک
-        $validation = $this->validate_child_data($child);
-        if (!$validation['is_valid']) {
-            $this->log('❌ Child Data Validation Failed: ' . $validation['message']);
-            wp_send_json_error(['message' => $validation['message']], 400);
-        }
-        $this->log('✅ Child Data Validated Successfully: ' . json_encode($child));
-
-        // آماده‌سازی داده‌ها برای API
-        $data = [
-            'child_age' => $child['age'],
-            'child_interests' => $child['interests'],
-            'parent_goals' => $parent_goals,
-            'child_name' => $child['name'],
-        ];
 
         try {
             $ai_response = $this->fetch_ai_recommendation($data);
         } catch (\Throwable $e) {
-            $this->log('❌ AI Recommendation Exception: ' . $e->getMessage() . ' | Stack Trace: ' . $e->getTraceAsString());
+            $this->log('❌ AI Recommendation Exception: ' . $e->getMessage());
             wp_send_json_error(['message' => __('یک خطای داخلی رخ داد.', 'neurame-ai-assistant')], 500);
         }
 
@@ -719,154 +743,125 @@ class NeurameAIAssistant
             wp_send_json_error(['message' => $ai_response['message'] ?? __('خطا در پاسخ هوش مصنوعی.', 'neurame-ai-assistant')], 500);
         }
 
-        // رندر دوره‌های پیشنهادی
         $html = $this->render_recommended_courses($ai_response['data']);
-        $this->log('✅ AI Recommendation Success: Rendered HTML for ' . count($ai_response['data']) . ' courses');
         wp_send_json_success(['html' => $html]);
     }
 
     public function fetch_ai_recommendation($data)
     {
-        // تمیز کردن بافر خروجی
         if (ob_get_length()) {
             ob_clean();
         }
 
         $settings = get_option('neurame_settings', []);
         $api_type = $settings['neurame_api_type'] ?? 'none';
+        $parent_mode = isset($settings['neurame_parent_mode']) && $settings['neurame_parent_mode'];
 
-        // لاگ‌گذاری شروع
-        $this->log('🚀 fetch_ai_recommendation: Starting with data - ' . json_encode($data, JSON_UNESCAPED_UNICODE));
-
-        // اعتبارسنجی تنظیمات API
         if ($api_type === 'none') {
             $this->log('❌ fetch_ai_recommendation: No AI API selected');
             return $this->send_json_response(false, __('هیچ API هوش مصنوعی انتخاب نشده است.', 'neurame-ai-assistant'));
         }
 
-        // اعتبارسنجی کلید API
         $api_key = $api_type === 'chatgpt' ? ($settings['neurame_chatgpt_api_key'] ?? '') : ($settings['neurame_gemini_api_key'] ?? '');
         if (empty($api_key)) {
             $this->log('❌ fetch_ai_recommendation: Missing API key for ' . $api_type);
             return $this->send_json_response(false, __('کلید API برای ' . $api_type . ' تنظیم نشده است.', 'neurame-ai-assistant'));
         }
 
-        // اعتبارسنجی داده‌های ورودی
-        if (empty($data['child_age']) || empty($data['child_interests']) || empty($data['parent_goals'])) {
-            $this->log('❌ fetch_ai_recommendation: Invalid input data - ' . json_encode($data, JSON_UNESCAPED_UNICODE));
-            return $this->send_json_response(false, __('داده‌های ورودی ناقص یا نامعتبر هستند.', 'neurame-ai-assistant'));
-        }
-
-        // دریافت لیست دوره‌های موجود
         $courses = wc_get_products([
             'limit' => -1,
             'status' => 'publish',
-            'type' => ['simple', 'variable'], // فقط محصولات ساده و متغیر
+            'type' => ['simple', 'variable'],
         ]);
         $course_list = [];
         foreach ($courses as $course) {
             $course_id = $course->get_id();
-            $permalink = get_permalink($course_id);
-            if (!$permalink) {
-                $this->log('⚠️ fetch_ai_recommendation: Failed to get permalink for course ID=' . $course_id . ', Name=' . $course->get_name());
-                $permalink = '';
-            } else {
-                $this->log('✅ fetch_ai_recommendation: Permalink generated for course ID=' . $course_id . ', URL=' . $permalink);
-            }
+            $permalink = get_permalink($course_id) ?: '';
             $course_list[] = [
                 'course_id' => (string)$course_id,
                 'course_name' => $course->get_name(),
                 'course_url' => $permalink
             ];
-            $this->log('📚 Course Loaded: ID=' . $course_id . ', Name=' . $course->get_name() . ', URL=' . ($permalink ?: 'MISSING'));
         }
 
         if (empty($course_list)) {
             $this->log('❌ fetch_ai_recommendation: No published courses found');
-            return $this->send_json_response(false, __('هیچ دوره‌ای در سیستم یافت نشد. لطفاً مطمئن شوید که محصولات ووکامرس منتشر شده‌اند.', 'neurame-ai-assistant'));
+            return $this->send_json_response(false, __('هیچ دوره‌ای در سیستم یافت نشد.', 'neurame-ai-assistant'));
         }
 
         $course_list_text = implode("\n", array_map(function ($course) {
             return "- ID: {$course['course_id']}, نام: {$course['course_name']}, URL: {$course['course_url']}";
         }, $course_list));
-        $this->log('📚 Available Courses: ' . substr($course_list_text, 0, 200));
 
-        // ساخت پرامپت
-        $prompt = sprintf(
-            "برای کودکی با سن %d سال، علاقه‌مندی‌های '%s' و اهداف والدین '%s'، دوره‌های آموزشی مناسب را پیشنهاد دهید. " .
-            "فقط از دوره‌های زیر انتخاب کنید و دوره‌های دیگر را پیشنهاد ندهید:\n%s\n\n" .
-            "پاسخ را حتماً به صورت JSON معتبر با فرمت زیر ارائه دهید و فقط JSON را برگردانید، بدون هیچ متن اضافی یا فرمت Markdown (مثل ```json):\n" .
-            "{\n  \"courses\": [\n    {\"course_id\": \"\", \"course_name\": \"\", \"course_url\": \"\"},\n    ...\n  ]\n}",
-            $data['child_age'],
-            $data['child_interests'],
-            $data['parent_goals'],
-            $course_list_text
-        );
-
-        if (!empty($data['child_name'])) {
-            $prompt .= "\n\nنام کودک: " . $data['child_name'];
+        if ($parent_mode) {
+            $prompt = sprintf(
+                "برای کودکی با سن %d سال، علاقه‌مندی‌های '%s' و اهداف والدین '%s'، دوره‌های آموزشی مناسب را پیشنهاد دهید. " .
+                "فقط از دوره‌های زیر انتخاب کنید:\n%s\n\n" .
+                "پاسخ را به صورت JSON معتبر با فرمت زیر ارائه دهید:\n" .
+                "{\n  \"courses\": [\n    {\"course_id\": \"\", \"course_name\": \"\", \"course_url\": \"\"},\n    ...\n  ]\n}",
+                $data['child_age'],
+                $data['child_interests'],
+                $data['parent_goals'],
+                $course_list_text
+            );
+            if (!empty($data['child_name'])) {
+                $prompt .= "\n\nنام کودک: " . $data['child_name'];
+            }
+        } else {
+            $prompt = sprintf(
+                "برای کاربری با علاقه‌مندی‌های '%s' و اهداف '%s'، دوره‌های آموزشی مناسب را پیشنهاد دهید. " .
+                "فقط از دوره‌های زیر انتخاب کنید:\n%s\n\n" .
+                "پاسخ را به صورت JSON معتبر با فرمت زیر ارائه دهید:\n" .
+                "{\n  \"courses\": [\n    {\"course_id\": \"\", \"course_name\": \"\", \"course_url\": \"\"},\n    ...\n  ]\n}",
+                $data['user_interests'],
+                $data['parent_goals'],
+                $course_list_text
+            );
+            if (!empty($data['user_name'])) {
+                $prompt .= "\n\nنام کاربر: " . $data['user_name'];
+            }
         }
 
-        // لاگ‌گذاری پرامپت
         $this->log('📝 AI Prompt: ' . substr($prompt, 0, 200));
 
         try {
-            // صدا زدن API
             $response = $this->call_ai_api($prompt, $settings);
-
             if (empty($response['success'])) {
-                $this->log('❌ AI API Error: ' . json_encode($response, JSON_UNESCAPED_UNICODE));
+                $this->log('❌ AI API Error: ' . json_encode($response));
                 return $this->send_json_response(false, __('خطا در پاسخ API: ', 'neurame-ai-assistant') . ($response['data'] ?? 'خطای ناشناخته'));
             }
 
-            // لاگ‌گذاری پاسخ خام
-            $this->log('📬 AI Raw Response: ' . substr($response['data'], 0, 200));
-
-            // حذف Markdown اضافی
             $cleaned_response = preg_replace('/^```json\s*|\s*```$|^```/', '', $response['data']);
             $cleaned_response = trim($cleaned_response);
 
-            // لاگ‌گذاری پاسخ پاک‌شده
-            $this->log('🧹 Cleaned AI Response: ' . substr($cleaned_response, 0, 200));
-
-            // تبدیل JSON به آرایه
             $json = json_decode($cleaned_response, true);
             if (json_last_error() !== JSON_ERROR_NONE || !$json || !isset($json['courses']) || !is_array($json['courses'])) {
-                $this->log('❌ Invalid JSON Format: ' . json_last_error_msg() . ' | Raw Response: ' . substr($cleaned_response, 0, 200));
+                $this->log('❌ Invalid JSON Format: ' . json_last_error_msg());
                 return $this->send_json_response(false, __('پاسخ API در فرمت JSON معتبر نیست: ', 'neurame-ai-assistant') . json_last_error_msg());
             }
 
-            // اعتبارسنجی و تکمیل دوره‌ها
             $valid_courses = [];
             $course_map = array_column($course_list, null, 'course_id');
             foreach ($json['courses'] as $item) {
                 if (!isset($item['course_id']) || !isset($course_map[$item['course_id']])) {
-                    $this->log('⚠️ Invalid Course Suggested: ' . json_encode($item, JSON_UNESCAPED_UNICODE));
                     continue;
                 }
                 $course_data = $course_map[$item['course_id']];
-                $valid_course = [
+                $valid_courses[] = [
                     'course_id' => $item['course_id'],
                     'course_name' => $item['course_name'] ?: $course_data['course_name'],
                     'course_url' => $course_data['course_url']
                 ];
-                $valid_courses[] = $valid_course;
-                $this->log('✅ Valid Course Added: ID=' . $valid_course['course_id'] . ', Name=' . $valid_course['course_name'] . ', URL=' . ($valid_course['course_url'] ?: 'MISSING'));
             }
 
             if (empty($valid_courses)) {
                 $this->log('❌ No Valid Courses Found in AI Response');
-                return $this->send_json_response(false, __('هیچ دوره معتبری پیشنهاد نشد. لطفاً مطمئن شوید که دوره‌ها در ووکامرس موجود و منتشر شده‌اند.', 'neurame-ai-assistant'));
+                return $this->send_json_response(false, __('هیچ دوره معتبری پیشنهاد نشد.', 'neurame-ai-assistant'));
             }
 
-            $this->log('✅ AI Recommendation Success: ' . count($valid_courses) . ' valid courses found');
-            return $this->send_json_response(true, [
-                'html' => $this->render_recommended_courses($valid_courses),
-                'courses' => $valid_courses
-            ]);
-
+            return $this->send_json_response(true, $valid_courses);
         } catch (\Throwable $e) {
-            $this->log('❌ fetch_ai_recommendation Exception: ' . $e->getMessage() . ' | Stack Trace: ' . substr($e->getTraceAsString(), 0, 200));
+            $this->log('❌ fetch_ai_recommendation Exception: ' . $e->getMessage());
             return $this->send_json_response(false, __('خطای داخلی در پردازش API: ', 'neurame-ai-assistant') . $e->getMessage());
         }
     }
@@ -1088,16 +1083,19 @@ class NeurameAIAssistant
             return;
         }
 
-        // ساختار دو ستونه: محتوای اصلی (چپ) و پنل (راست)
+        $settings = get_option('neurame_settings');
+        $parent_mode = isset($settings['neurame_parent_mode']) && $settings['neurame_parent_mode'];
+
         echo '<div class="neurame-combined-dashboard grid gap-8 lg:grid-cols-3 p-12">';
 
-        // ستون اصلی (چپ) - شامل بلوک‌های اصلی
         echo '<div class="lg:col-span-2 space-y-8">';
         $blocks = [
             ['title' => '', 'content' => $this->render_profile()],
-            ['title' => '', 'content' => $this->render_children_management()],
             ['title' => '', 'content' => $this->render_smart_assistant()],
         ];
+        if ($parent_mode) {
+            $blocks[] = ['title' => '', 'content' => $this->render_children_management()];
+        }
 
         foreach ($blocks as $block) {
             echo '<section class="bg-white rounded-lg p-12">';
@@ -1106,19 +1104,12 @@ class NeurameAIAssistant
         }
         echo '</div>';
 
-        // ستون پنل (راست) - شامل منوی انتخاب و گزارش‌ها
         echo '<div class="lg:col-span-1 space-y-8">';
 
-        // منوی انتخاب (فرزند یا کاربر)
         echo '<div class="bg-white rounded-lg p-6">';
         echo '<h3 class="text-lg font-semibold mb-4">' . esc_html__('انتخاب:', 'neurame-ai-assistant') . '</h3>';
 
-        // بررسی پرنتال مود
-        $is_parental_mode = true; // فرض می‌کنیم یه تابع یا متغیر برای بررسی پرنتال مود داریم
-        // برای مثال: $is_parental_mode = some_function_to_check_parental_mode();
-
-        if ($is_parental_mode) {
-            // پرنتال مود: نمایش منوی انتخاب فرزند
+        if ($parent_mode) {
             $children = get_user_meta(get_current_user_id(), 'neurame_children', true);
             if (!is_array($children)) {
                 $children = [];
@@ -1134,34 +1125,24 @@ class NeurameAIAssistant
             </select>
             <?php
         } else {
-            // خارج از پرنتال مود: نمایش منوی انتخاب کاربر
-            $users = get_users(['role__in' => ['subscriber', 'customer']]); // کاربران با نقش‌های مشخص
+            $user = wp_get_current_user();
             ?>
-            <select name="report_user_select" id="report-user-select" class="w-full p-2 border rounded">
-                <option value=""><?php echo esc_html__('یک کاربر انتخاب کنید', 'neurame-ai-assistant'); ?></option>
-                <?php foreach ($users as $user) : ?>
-                    <option value="<?php echo esc_attr($user->ID); ?>">
-                        <?php echo esc_html($user->display_name); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+            <p class="text-gray-600"><?php echo esc_html__('کاربر: ' . $user->display_name, 'neurame-ai-assistant'); ?></p>
             <?php
         }
         echo '</div>';
 
-        // بخش گزارش‌ها
         echo '<div class="bg-white rounded-lg p-6">';
         echo '<h3 class="text-lg font-semibold mb-4">' . esc_html__('گزارش‌ها', 'neurame-ai-assistant') . '</h3>';
         echo '<div id="reports-list" class="reports-list">';
-        echo '<p class="text-gray-600">' . esc_html__('لطفاً یک گزینه انتخاب کنید تا گزارش‌ها نمایش داده شوند.', 'neurame-ai-assistant') . '</p>';
+        echo '<p class="text-gray-600">' . esc_html__('گزارش‌های شما نمایش داده می‌شوند.', 'neurame-ai-assistant') . '</p>';
         echo '</div>';
         echo '</div>';
 
-        // بخش گزارش هوشمند
         echo '<div class="bg-white rounded-lg p-6">';
         echo '<h3 class="text-lg font-semibold mb-4">' . esc_html__('گزارش هوشمند روند پیشرفت', 'neurame-ai-assistant') . '</h3>';
         echo '<div id="progress-report" class="progress-report">';
-        echo '<p class="text-gray-600">' . esc_html__('لطفاً یک گزینه انتخاب کنید تا گزارش هوشمند نمایش داده شود.', 'neurame-ai-assistant') . '</p>';
+        echo '<p class="text-gray-600">' . esc_html__('گزارش هوشمند پیشرفت شما نمایش داده می‌شود.', 'neurame-ai-assistant') . '</p>';
         echo '</div>';
         echo '</div>';
         echo '</div>';
@@ -1263,7 +1244,9 @@ class NeurameAIAssistant
         }
 
         $user_id = get_current_user_id();
-        $children = get_user_meta($user_id, 'neurame_children', true);
+        $settings = get_option('neurame_settings');
+        $parent_mode = isset($settings['neurame_parent_mode']) && $settings['neurame_parent_mode'];
+        $children = $parent_mode ? get_user_meta($user_id, 'neurame_children', true) : [];
         $children = is_array($children) ? $children : [];
         $parent_goals = get_user_meta($user_id, 'neurame_parent_goals', true);
 
@@ -1275,23 +1258,26 @@ class NeurameAIAssistant
             <form id="neurame-info-form" class="space-y-4">
                 <input type="hidden" name="nonce" value="<?php echo wp_create_nonce('neurame_nonce'); ?>">
 
-                <?php if (empty($children)): ?>
+                <?php if ($parent_mode && empty($children)): ?>
                     <p><?php esc_html_e('هیچ فرزندی ثبت نشده است. لطفاً ابتدا فرزندان خود را اضافه کنید.', 'neurame-ai-assistant'); ?></p>
                 <?php else: ?>
-                    <div>
-                        <label for="child_select"
-                               class="block mb-1 text-sm font-medium"><?php esc_html_e('انتخاب فرزند', 'neurame-ai-assistant'); ?></label>
-                        <br>
-                        <select name="child_select" id="child_select" class="w-full p-2 border rounded-lg" required>
-                            <option
-                                value=""><?php esc_html_e('یک فرزند انتخاب کنید', 'neurame-ai-assistant'); ?></option>
-                            <?php foreach ($children as $index => $child): ?>
-                                <option value="<?php echo esc_attr($user_id . '_' . $index); ?>">
-                                    <?php echo esc_html($child['name']); ?> (سن: <?php echo esc_html($child['age']); ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
+                    <?php if ($parent_mode): ?>
+                        <div>
+                            <label for="child_select"
+                                   class="block mb-1 text-sm font-medium"><?php esc_html_e('انتخاب فرزند', 'neurame-ai-assistant'); ?></label>
+                            <br>
+                            <select name="child_select" id="child_select" class="w-full p-2 border rounded-lg" required>
+                                <option
+                                    value=""><?php esc_html_e('یک فرزند انتخاب کنید', 'neurame-ai-assistant'); ?></option>
+                                <?php foreach ($children as $index => $child): ?>
+                                    <option value="<?php echo esc_attr($user_id . '_' . $index); ?>">
+                                        <?php echo esc_html($child['name']); ?>
+                                        (سن: <?php echo esc_html($child['age']); ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    <?php endif; ?>
 
                     <div>
                         <label for="parent_goals"
@@ -1312,7 +1298,7 @@ class NeurameAIAssistant
                 <div id="neurame-ai-response" class="mt-10"></div>
                 <br>
                 <div id="recommended-courses-list" class="courses-list">
-                    <p class="text-gray-600"><?php echo esc_html__('اینجا لیست دوره‌هایی که برای کودک شما مناسب هستند نمایش داده می‌شود.', 'neurame-ai-assistant'); ?></p>
+                    <p class="text-gray-600"><?php echo esc_html__('اینجا لیست دوره‌هایی که برای شما مناسب هستند نمایش داده می‌شود.', 'neurame-ai-assistant'); ?></p>
                 </div>
             </div>
         </div>
@@ -1345,6 +1331,9 @@ class NeurameAIAssistant
             }
             return;
         }
+
+        $settings = get_option('neurame_settings');
+        $parent_mode = isset($settings['neurame_parent_mode']) && $settings['neurame_parent_mode'];
 
         add_menu_page(
             __('Neurame AI Assistant', 'neurame-ai-assistant'),
@@ -1383,14 +1372,16 @@ class NeurameAIAssistant
             [$this, 'trainer_reports_page']
         );
 
-        add_submenu_page(
-            'neurame-ai-assistant',
-            __('Children Management', 'neurame-ai-assistant'),
-            __('مدیریت کودکان', 'neurame-ai-assistant'),
-            'manage_options',
-            'neurame-children-management',
-            [$this, 'render_children_management_admin']
-        );
+        if ($parent_mode) {
+            add_submenu_page(
+                'neurame-ai-assistant',
+                __('Children Management', 'neurame-ai-assistant'),
+                __('مدیریت کودکان', 'neurame-ai-assistant'),
+                'manage_options',
+                'neurame-children-management',
+                [$this, 'render_children_management_admin']
+            );
+        }
 
         add_submenu_page(
             'neurame-ai-assistant',
@@ -1580,13 +1571,37 @@ class NeurameAIAssistant
     public function update_child_progress_on_report($user_id, $child_id, $report_content)
     {
         $skills = $this->analyze_child_skills($report_content);
-        $summary = $this->generate_ai_summary($report_content);
+        $summary = $this->generate_ai_summary($skills);
 
         update_user_meta($user_id, 'child_progress_analysis_' . $child_id, [
             'skills' => $skills,
-            'summary' => $summary,
+            'ai_summary' => $summary,
             'last_updated' => current_time('mysql'),
         ]);
+    }
+
+    public function update_user_progress_on_report($user_id, $report_content)
+    {
+        $skills = $this->analyze_user_skills($report_content);
+        $summary = $this->generate_ai_summary($skills);
+
+        update_user_meta($user_id, 'user_progress_analysis', [
+            'skills' => $skills,
+            'ai_summary' => $summary,
+            'last_updated' => current_time('mysql'),
+        ]);
+    }
+
+    private function analyze_user_skills($report_content)
+    {
+        // مشابه analyze_child_skills اما برای کاربر
+        return [
+            'focus' => rand(50, 90),
+            'logic' => rand(40, 80),
+            'problem_solving' => rand(60, 95),
+            'communication' => rand(50, 85),
+            'creativity' => rand(45, 75),
+        ];
     }
 
     private function analyze_child_skills($child_id)
@@ -1865,8 +1880,12 @@ class NeurameAIAssistant
     {
         check_ajax_referer('neurame_get_reports', 'nonce');
 
-        $child_id = sanitize_text_field($_POST['child_id'] ?? '');
-        if (!$child_id) {
+        $settings = get_option('neurame_settings');
+        $parent_mode = isset($settings['neurame_parent_mode']) && $settings['neurame_parent_mode'];
+        $user_id = get_current_user_id();
+        $child_id = $parent_mode ? sanitize_text_field($_POST['child_id'] ?? '') : '';
+
+        if ($parent_mode && !$child_id) {
             wp_send_json_error(['message' => 'شناسه کودک نامعتبر است.']);
         }
 
@@ -1875,13 +1894,19 @@ class NeurameAIAssistant
             $reports = [];
         }
 
-        $child_reports = array_filter($reports, function ($report) use ($child_id) {
-            return $report['child_id'] === $child_id;
-        });
+        if ($parent_mode) {
+            $child_reports = array_filter($reports, function ($report) use ($child_id) {
+                return $report['child_id'] === $child_id;
+            });
+        } else {
+            $child_reports = array_filter($reports, function ($report) use ($user_id) {
+                return $report['user_id'] === $user_id;
+            });
+        }
 
         if (empty($child_reports)) {
             wp_send_json_success([
-                'html' => '<p class="text-gray-600">برای این کودک هنوز گزارشی ثبت نشده است.</p>'
+                'html' => '<p class="text-gray-600">برای شما هنوز گزارشی ثبت نشده است.</p>'
             ]);
         }
 
@@ -1896,15 +1921,15 @@ class NeurameAIAssistant
 
 با توجه به گزارش‌های زیر:
 
-1. میزان مهارت‌های کودک را برای این دسته‌ها بین 0 تا 100 بده: تمرکز، منطق، حل مسئله، مکالمه، خلاقیت.
-2. یک خلاصه تحلیلی 2 تا 3 جمله‌ای از نقاط قوت و ضعف کودک بنویس.
+1. میزان مهارت‌های کاربر را برای این دسته‌ها بین 0 تا 100 بده: تمرکز، منطق، حل مسئله، مکالمه، خلاقیت.
+2. یک خلاصه تحلیلی 2 تا 3 جمله‌ای از نقاط قوت و ضعف کاربر بنویس.
 
 خروجی را فقط و فقط در قالب JSON به فرمت زیر بده:
 
 {
   "labels": ["تمرکز", "منطق", "حل مسئله", "مکالمه", "خلاقیت"],
   "values": [75, 80, 65, 70, 90],
-  "summary": "کودک در تمرکز و منطق عملکرد خوبی دارد اما در مکالمه نیاز به تمرین بیشتر دارد."
+  "summary": "کاربر در تمرکز و منطق عملکرد خوبی دارد اما در مکالمه نیاز به تمرین بیشتر دارد."
 }
 
 متن گزارش‌ها:
@@ -1918,9 +1943,7 @@ EOD;
             wp_send_json_error(['message' => 'خطا در تحلیل مهارت‌ها توسط AI.']);
         }
 
-        $cleaned_response = $response['data'];
-
-        $cleaned_response = preg_replace('/^```json\s*/', '', $cleaned_response);
+        $cleaned_response = preg_replace('/^```json\s*/', '', $response['data']);
         $cleaned_response = preg_replace('/\s*```$/', '', $cleaned_response);
         $cleaned_response = trim($cleaned_response);
 
@@ -1933,7 +1956,8 @@ EOD;
         ob_start();
         ?>
         <div class="space-y-4">
-            <canvas id="progress-chart-<?php echo esc_attr($child_id); ?>" height="250"></canvas>
+            <canvas id="progress-chart-<?php echo esc_attr($parent_mode ? $child_id : $user_id); ?>"
+                    height="250"></canvas>
             <div class="p-4 bg-blue-50 text-blue-900 rounded-lg">
                 <?php echo esc_html($json_data['summary']); ?>
             </div>
@@ -1952,69 +1976,77 @@ EOD;
 
     public function ajax_save_trainer_report()
     {
-        check_ajax_referer('neurame_trainer_report', 'nonce');
-
-        $this->log('📥 Raw POST Data: ' . print_r($_POST, true));
-
-        $trainer_id = intval($_POST['trainer_id'] ?? 0);
-        $course_id = intval($_POST['course_id'] ?? 0);
-        $user_id = intval($_POST['user_id'] ?? 0);
-        $child_id = sanitize_text_field($_POST['child_id'] ?? '');
-        $report_content = sanitize_textarea_field($_POST['report_content'] ?? '');
-        $parent_mode = get_option('neurame_settings')['neurame_parent_mode'] ?? 0;
-
-        if (!$trainer_id || !$course_id || ($parent_mode && (!$user_id || !$child_id)) || !$report_content) {
-            $this->log('❌ Data Missing: ' . ($trainer_id ? '' : 'trainer_id, ') . ($course_id ? '' : 'course_id, ') . ($user_id ? '' : 'user_id, ') . ($child_id ? '' : 'child_id, ') . ($report_content ? '' : 'report_content'));
-            wp_send_json_error(['message' => 'اطلاعات ناقص است.']);
+        // بررسی nonce برای امنیت
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'neurame_trainer_report')) {
+            $this->log('❌ ajax_save_trainer_report: Invalid nonce');
+            wp_send_json_error(['message' => __('خطای امنیتی.', 'neurame-ai-assistant')], 403);
         }
 
+        // دریافت و پاک‌سازی داده‌های ورودی
+        $trainer_id = isset($_POST['trainer_id']) ? absint($_POST['trainer_id']) : 0;
+        $course_id = isset($_POST['course_id']) ? absint($_POST['course_id']) : 0;
+        $user_id = isset($_POST['user_id']) ? absint($_POST['user_id']) : 0;
+        $child_id = isset($_POST['child_id']) ? sanitize_text_field($_POST['child_id']) : '';
+        $report_content = isset($_POST['report_content']) ? sanitize_textarea_field($_POST['report_content']) : '';
+
+        // دریافت تنظیمات افزونه
         $settings = get_option('neurame_settings', []);
-        $api_type = $settings['neurame_api_type'] ?? 'none';
-        $ai_content = $report_content;
+        $parent_mode = !empty($settings['neurame_parent_mode']);
 
-        // دریافت نام دوره
-        $course = wc_get_product($course_id);
-        $course_name = $course ? $course->get_name() : 'دوره ناشناس';
-        $this->log('📚 Course Name Loaded: ' . $course_name . ' (course_id=' . $course_id . ')');
-
-        // ساخت پرامپت برای بازنویسی گزارش
-        $prompt = "این گزارش مربی را به صورت حرفه‌ای و خلاصه به زبان فارسی بازنویسی کنید:\n\n" .
-            "دوره: " . $course_name . "\n" .
-            "گزارش: " . $report_content;
-        if ($parent_mode && !empty($child_id)) {
-            list($user_id, $child_index) = explode('_', $child_id);
-            $children = get_user_meta($user_id, 'neurame_children', true);
-            if (isset($children[$child_index])) {
-                $child = $children[$child_index];
-                $prompt .= "\n\nبرای کودک: " . $child['name'] . "، سن " . $child['age'] . "، علاقه‌مندی‌ها: " . $child['interests'];
-            }
+        // اعتبارسنجی داده‌ها
+        if (!$trainer_id || !$course_id || ($parent_mode && (!$user_id || !$child_id)) || !$report_content) {
+            $this->log('❌ ajax_save_trainer_report: Missing required fields');
+            wp_send_json_error(['message' => __('اطلاعات ناقص است.', 'neurame-ai-assistant')], 400);
         }
-        $prompt .= "\n\nپاسخ را فقط به صورت متن ساده و بدون فرمت Markdown (مثل ```) ارائه دهید.";
 
-        // لاگ‌گذاری پرامپت
-        $this->log('📝 AI Prompt for Report Rewrite: ' . substr($prompt, 0, 200));
+        // دریافت اطلاعات دوره
+        $course = wc_get_product($course_id);
+        $course_name = $course ? $course->get_name() : __('دوره ناشناس', 'neurame-ai-assistant');
+        $this->log('📚 Course Name Loaded: ' . $course_name);
 
-        // ارسال درخواست به API هوش مصنوعی
+        // آماده‌سازی پرامپت برای بازنویسی گزارش با هوش مصنوعی
+        $ai_content = $report_content;
+        $api_type = $settings['neurame_api_type'] ?? 'none';
         if ($api_type !== 'none') {
-            $response = $this->call_ai_api($prompt, $settings);
+            $prompt = "این گزارش مربی را به صورت حرفه‌ای و خلاصه به زبان فارسی بازنویسی کنید:\n\n" .
+                "دوره: " . $course_name . "\n" .
+                "گزارش: " . $report_content;
 
+            if ($parent_mode && !empty($child_id)) {
+                list($child_user_id, $child_index) = explode('_', $child_id);
+                $children = get_user_meta($child_user_id, 'neurame_children', true);
+                if (is_array($children) && isset($children[$child_index])) {
+                    $child = $children[$child_index];
+                    $prompt .= "\n\nبرای کودک: " . $child['name'] . "، سن " . $child['age'] . "، علاقه‌مندی‌ها: " . $child['interests'];
+                }
+            } else {
+                $user = get_userdata($user_id);
+                $prompt .= "\n\nبرای کاربر: " . ($user ? $user->display_name : __('کاربر ناشناس', 'neurame-ai-assistant'));
+            }
+
+            $prompt .= "\n\nپاسخ را فقط به صورت متن ساده و بدون فرمت Markdown ارائه دهید.";
+            $this->log('📝 AI Prompt for Report Rewrite: ' . substr($prompt, 0, 200));
+
+            // فراخوانی API هوش مصنوعی
+            $response = $this->call_ai_api($prompt, $settings);
             if ($response['success']) {
                 $ai_content = trim($response['data']);
                 $this->log('✅ AI Rewritten Content: ' . substr($ai_content, 0, 200));
             } else {
                 $this->log('❌ AI Rewrite Failed: ' . ($response['data'] ?? 'No data'));
-                $ai_content = $report_content; // اگر خطا داشت، از متن اصلی استفاده کن
             }
-        } else {
-            $this->log('⚠️ No AI API selected, using original content');
         }
 
         // ذخیره گزارش
-        $reports = $this->get_trainer_reports();
+        $reports = get_option('neurame_trainer_reports', []);
+        if (!is_array($reports)) {
+            $reports = [];
+        }
+
         $report_data = [
             'trainer_id' => $trainer_id,
             'course_id' => $course_id,
-            'user_id' => $parent_mode ? $user_id : get_current_user_id(),
+            'user_id' => $user_id,
             'content' => $report_content,
             'ai_content' => $ai_content,
             'timestamp' => current_time('mysql')
@@ -2026,12 +2058,17 @@ EOD;
         $reports[] = $report_data;
         update_option('neurame_trainer_reports', $reports);
 
-        // به‌روزرسانی پیشرفت کودک
+        // به‌روزرسانی پیشرفت
         if ($parent_mode && !empty($child_id)) {
             $this->update_child_progress_on_report($user_id, $child_id, $ai_content);
+        } else {
+            $this->update_user_progress_on_report($user_id, $ai_content);
         }
 
-        $this->log('✅ Report saved successfully: trainer_id=' . $trainer_id . ', course_id=' . $course_id . ', course_name=' . $course_name . ', ai_content_length=' . strlen($ai_content));
-        wp_send_json_success(['message' => 'گزارش با موفقیت ذخیره شد.', 'ai_content' => $ai_content]);
+        $this->log('✅ Report saved successfully');
+        wp_send_json_success([
+            'message' => __('گزارش با موفقیت ذخیره شد.', 'neurame-ai-assistant'),
+            'ai_content' => $ai_content
+        ]);
     }
 }

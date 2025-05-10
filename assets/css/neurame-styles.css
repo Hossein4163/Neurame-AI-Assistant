@@ -226,3 +226,11 @@ select[name="report_user_select"]:focus {
 .neurame-toast.error {
     background: #f56565; /* قرمز خطا */
 }
+
+/* فقط در حالت پرنتال مود نمایش داده شود */
+.neurame-child-select {
+    display: none;
+}
+body.neurame-parent-mode .neurame-child-select {
+    display: block;
+}

@@ -53,6 +53,10 @@ function showToast(message, type = 'success') {
 }
 
 waitForNeurameVars((vars) => {
+    if (vars.is_parent_mode) {
+        document.body.classList.add('neurame-parent-mode');
+    }
+
     const ajaxUrl = vars.ajax_url || '';
     const aiNonce = vars.ai_nonce || '';
     const getNonce = vars.nonce_get_children || '';
@@ -82,7 +86,7 @@ waitForNeurameVars((vars) => {
                 fd.append('parent_goals', textarea.value.trim());
 
                 try {
-                    const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                    const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                     const json = await resp.json();
 
                     if (json.success) {
@@ -110,7 +114,7 @@ waitForNeurameVars((vars) => {
             fd.append('child_id', childId);
 
             try {
-                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
                 const container = document.getElementById('reports-list');
@@ -148,7 +152,7 @@ waitForNeurameVars((vars) => {
             fd.append('child_id', childId);
 
             try {
-                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
                 const container = document.getElementById('progress-report');
@@ -180,11 +184,11 @@ waitForNeurameVars((vars) => {
                                         r: {
                                             beginAtZero: true,
                                             max: 100,
-                                            ticks: { stepSize: 20 }
+                                            ticks: {stepSize: 20}
                                         },
                                     },
                                     plugins: {
-                                        legend: { position: 'top' },
+                                        legend: {position: 'top'},
                                         title: {
                                             display: true,
                                             text: 'روند پیشرفت مهارت‌ها'
@@ -209,26 +213,18 @@ waitForNeurameVars((vars) => {
 
         // دریافت پیشنهاد هوش مصنوعی
         async function fetchAIRecommendation(childId, parentGoals) {
-            if (!childId || !parentGoals) {
-                showToast('لطفاً همه‌ی فیلدها را تکمیل کنید.', 'error');
-                return;
-            }
-
-            const [userId, childIndex] = childId.split('_');
-            if (!userId || childIndex === undefined) {
-                showToast('فرمت شناسه کودک نامعتبر است.', 'error');
-                return;
-            }
-
             const fd = new FormData();
             fd.append('action', 'neurame_ai_recommendation');
             fd.append('nonce', aiNonce);
-            fd.append('user_id', userId);
-            fd.append('child_index', childIndex);
             fd.append('parent_goals', parentGoals);
+            if (childId) {
+                fd.append('child_id', childId);
+            } else {
+                fd.append('user_id', userId);
+            }
 
             try {
-                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
                 const responseContainer = document.getElementById('neurame-ai-response');
@@ -285,18 +281,21 @@ waitForNeurameVars((vars) => {
                     return;
                 }
 
-                const childSelect = form.querySelector('select[name="child_select"]');
                 const parentGoalsInput = form.querySelector('textarea[name="parent_goals"]');
+                const childSelect = form.querySelector('select[name="child_select"]');
+                let childId = '';
+                if (childSelect) {
+                    childId = childSelect.value.trim();
+                }
 
-                if (!childSelect || !parentGoalsInput) {
+                if (!parentGoalsInput) {
                     showToast('فیلدهای مورد نیاز پیدا نشدند.', 'error');
                     return;
                 }
 
-                const childId = childSelect.value.trim();
                 const parentGoals = parentGoalsInput.value.trim();
 
-                if (!childId || !parentGoals) {
+                if (!parentGoals || (childSelect && !childId)) {
                     showToast('لطفاً همه‌ی فیلدها را تکمیل کنید.', 'error');
                     return;
                 }
@@ -313,7 +312,7 @@ waitForNeurameVars((vars) => {
             fd.append('user_id', userId);
 
             try {
-                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
                 if (!json.success) {
