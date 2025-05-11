@@ -44,6 +44,8 @@ class NeurameAIAssistant
         add_shortcode('neurame_ai_recommendation', [$this, 'ai_recommendation_shortcode']);
         add_action('wp_ajax_neurame_save_children', [$this, 'ajax_save_children']);
         add_action('wp_ajax_neurame_save_trainer_report', [$this, 'ajax_save_trainer_report']);
+        add_action('wp_ajax_neurame_delete_trainer_report', [$this, 'ajax_delete_trainer_report']);
+        add_action('wp_ajax_neurame_update_trainer_report', [$this, 'ajax_update_trainer_report']);
 
         // 🔥 اضافه شده برای بروزرسانی روند پیشرفت فرزند بعد از ثبت گزارش مربی
         add_action('save_post_trainer_report', [$this, 'update_child_progress_on_report'], 10, 2);
@@ -53,6 +55,11 @@ class NeurameAIAssistant
         // اضافه کردن اکشن‌های جدید برای گزارش‌ها و گزارش هوشمند
         add_action('wp_ajax_neurame_get_reports', [$this, 'ajax_get_reports']);
         add_action('wp_ajax_neurame_get_progress_report', [$this, 'ajax_get_progress_report']);
+
+        if (!wp_next_scheduled('neurame_clean_logs_hourly')) {
+            wp_schedule_event(time(), 'hourly', 'neurame_clean_logs_hourly');
+        }
+        add_action('neurame_clean_logs_hourly', [$this, 'clean_log_files']);
     }
 
     public function register_shortcodes()
@@ -1520,37 +1527,56 @@ class NeurameAIAssistant
             wp_die(esc_html__('دسترسی ندارید.', 'neurame-ai-assistant'));
         }
 
-        $parent_mode = get_option('neurameai_parent_mode', 0);
+        $parent_mode = get_option('neurame_settings')['neurame_parent_mode'] ?? 0;
+        $current_user_id = get_current_user_id();
+        $is_admin = current_user_can('manage_options');
+
         ?>
         <div class="wrap">
             <h1 class="text-3xl font-bold mb-6"><?php echo esc_html__('گزارش‌های مربی', 'neurame-ai-assistant'); ?></h1>
-            <?php
-            // لود قالب فرم
-            include NEURAMEAI_PLUGIN_DIR . 'partials/trainer-reports-template.php';
-            ?>
+            <?php include NEURAMEAI_PLUGIN_DIR . 'partials/trainer-reports-template.php'; ?>
 
-            <!-- نمایش گزارش‌های موجود -->
             <?php
             $reports = $this->get_trainer_reports();
+
+            // فقط گزارش‌های متعلق به مربی فعلی، مگر اینکه ادمینه
+            if (!$is_admin) {
+                $reports = array_filter($reports, fn($r) => $r['trainer_id'] === $current_user_id);
+            }
+
             if (!empty($reports)) {
                 echo '<h2 class="text-2xl font-bold mt-8 mb-4">' . esc_html__('گزارش‌های موجود', 'neurame-ai-assistant') . '</h2>';
-                echo '<table class="wp-list-table widefat fixed striped"><thead><tr><th>مربی</th><th>دوره</th><th>کاربر</th>';
-                if ($parent_mode) echo '<th>کودک</th>';
-                echo '<th>گزارش</th><th>بازنویسی‌شده توسط هوش مصنوعی</th></tr></thead><tbody>';
+                echo '<table class="wp-list-table widefat fixed striped"><thead><tr>';
+                echo '<th>' . esc_html__('مربی') . '</th>';
+                echo '<th>' . esc_html__('دوره') . '</th>';
+                echo '<th>' . esc_html__('کاربر') . '</th>';
+                if ($parent_mode) echo '<th>' . esc_html__('کودک') . '</th>';
+                echo '<th>' . esc_html__('گزارش') . '</th>';
+                echo '<th>' . esc_html__('بازنویسی‌شده') . '</th>';
+                echo '<th>' . esc_html__('مدیریت') . '</th>';
+                echo '</tr></thead><tbody>';
+
                 foreach ($reports as $report) {
                     $trainer = get_user_by('id', $report['trainer_id']);
                     $course = wc_get_product($report['course_id']);
                     $user = get_user_by('id', $report['user_id']);
                     $child_name = $parent_mode && !empty($report['child_id']) ? $this->get_child_name($report['child_id']) : '';
-                    printf(
-                        '<tr><td>%s</td><td>%s</td><td>%s</td>',
-                        esc_html($trainer ? $trainer->display_name : 'ناشناس'),
-                        esc_html($course ? $course->get_name() : 'ناشناس'),
-                        esc_html($user ? $user->display_name : 'ناشناس')
-                    );
-                    if ($parent_mode) printf('<td>%s</td>', esc_html($child_name));
-                    printf('<td>%s</td><td>%s</td></tr>', esc_html($report['content']), esc_html($report['ai_content'] ?? $report['content']));
+                    $report_id = esc_attr($report['id'] ?? '');
+
+                    echo '<tr>';
+                    echo '<td>' . esc_html($trainer ? $trainer->display_name : 'ناشناس') . '</td>';
+                    echo '<td>' . esc_html($course ? $course->get_name() : 'ناشناس') . '</td>';
+                    echo '<td>' . esc_html($user ? $user->display_name : 'ناشناس') . '</td>';
+                    if ($parent_mode) echo '<td>' . esc_html($child_name) . '</td>';
+                    echo '<td>' . esc_html($report['content']) . '</td>';
+                    echo '<td>' . esc_html($report['ai_content'] ?? $report['content']) . '</td>';
+                    echo '<td>';
+                    echo '<button class="neurame-edit-report text-blue-600" data-report-id="' . $report_id . '">✏️</button> ';
+                    echo '<button class="neurame-delete-report text-red-600" data-report-id="' . $report_id . '">🗑</button>';
+                    echo '</td>';
+                    echo '</tr>';
                 }
+
                 echo '</tbody></table>';
             }
             ?>
@@ -1559,10 +1585,24 @@ class NeurameAIAssistant
     }
 
     // 📌 به‌روزرسانی پیشرفت کودک بعد از ذخیره گزارش
-    public function update_child_progress_on_report($user_id, $child_id, $report_content)
+    public function update_child_progress_on_report($user_id, $child_id, $last_report_content)
     {
-        $skills = $this->analyze_child_skills($report_content);
-        $summary = $this->generate_ai_summary($report_content);
+        $all_reports = $this->get_trainer_reports();
+        $child_reports = array_filter($all_reports, function ($r) use ($child_id) {
+            return isset($r['child_id']) && $r['child_id'] === $child_id;
+        });
+
+        if (empty($child_reports)) {
+            return;
+        }
+
+        $combined_content = implode("\n---\n", array_map(function ($r) {
+            return $r['ai_content'] ?? $r['content'];
+        }, $child_reports));
+
+        // تحلیل جدید با محتوای ترکیبی
+        $skills = $this->analyze_child_skills($combined_content);
+        $summary = $this->generate_ai_summary($combined_content);
 
         update_user_meta($user_id, 'child_progress_analysis_' . $child_id, [
             'skills' => $skills,
@@ -1699,6 +1739,7 @@ class NeurameAIAssistant
 
         $reports = get_option('neurame_trainer_reports', []);
         $reports[] = [
+            'id' => uniqid('rpt_'),
             'trainer_id' => $trainer_id,
             'course_id' => $course_id,
             'user_id' => $user_id,
@@ -1994,6 +2035,7 @@ EOD;
         // ذخیره گزارش
         $reports = $this->get_trainer_reports();
         $report_data = [
+            'id' => uniqid('rpt_'),
             'trainer_id' => $trainer_id,
             'course_id' => $course_id,
             'user_id' => $parent_mode ? $user_id : get_current_user_id(),
@@ -2016,4 +2058,84 @@ EOD;
         Logger::info('✅ Report saved successfully: trainer_id=' . $trainer_id . ', course_id=' . $course_id . ', course_name=' . $course_name . ', ai_content_length=' . strlen($ai_content));
         wp_send_json_success(['message' => 'گزارش با موفقیت ذخیره شد.', 'ai_content' => $ai_content]);
     }
+
+    public function ajax_delete_trainer_report()
+    {
+        check_ajax_referer('neurame_trainer_report', 'nonce');
+
+        $report_id = sanitize_text_field($_POST['report_id'] ?? '');
+        if (!$report_id) {
+            wp_send_json_error(['message' => 'شناسه گزارش نامعتبر است.']);
+        }
+
+        $reports = get_option('neurame_trainer_reports', []);
+        foreach ($reports as $index => $report) {
+            if ($report['id'] === $report_id) {
+                // امنیت: بررسی مالکیت
+                if (!current_user_can('manage_options') && $report['trainer_id'] !== get_current_user_id()) {
+                    wp_send_json_error(['message' => 'شما مجاز به حذف این گزارش نیستید.']);
+                }
+
+                unset($reports[$index]);
+                update_option('neurame_trainer_reports', array_values($reports));
+                wp_send_json_success(['message' => 'گزارش با موفقیت حذف شد.']);
+            }
+        }
+
+        wp_send_json_error(['message' => 'گزارش یافت نشد.']);
+    }
+
+    public function ajax_update_trainer_report()
+    {
+        check_ajax_referer('neurame_trainer_report', 'nonce');
+
+        $report_id = sanitize_text_field($_POST['report_id'] ?? '');
+        $new_content = sanitize_textarea_field($_POST['report_content'] ?? '');
+
+        if (!$report_id || !$new_content) {
+            wp_send_json_error(['message' => 'داده‌های ورودی ناقص هستند.']);
+        }
+
+        $reports = get_option('neurame_trainer_reports', []);
+        foreach ($reports as &$report) {
+            if ($report['id'] === $report_id) {
+                // امنیت: بررسی مالکیت
+                if (!current_user_can('manage_options') && $report['trainer_id'] !== get_current_user_id()) {
+                    wp_send_json_error(['message' => 'شما مجاز به ویرایش این گزارش نیستید.']);
+                }
+
+                $report['content'] = $new_content;
+                $report['timestamp'] = current_time('mysql');
+
+                // بازنویسی با AI
+                $ai_response = $this->call_ai_api("بازنویسی کن: \n" . $new_content, get_option('neurame_settings'));
+                $report['ai_content'] = $ai_response['success'] ? $ai_response['data'] : $new_content;
+
+                update_option('neurame_trainer_reports', $reports);
+                wp_send_json_success(['message' => 'گزارش ویرایش شد.', 'ai_content' => $report['ai_content']]);
+            }
+        }
+
+        wp_send_json_error(['message' => 'گزارش مورد نظر یافت نشد.']);
+    }
+
+    public function clean_log_files()
+    {
+        $log_dir = plugin_dir_path(__DIR__) . 'logs/'; // مسیر دقیق پوشه لاگ‌ها
+
+        if (!is_dir($log_dir)) {
+            return;
+        }
+
+        $files = glob($log_dir . '*.log'); // همه فایل‌های .log
+
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            }
+        }
+
+        Logger::info('🧹 لاگ‌ها پاک‌سازی شدند توسط کرون');
+    }
+
 }

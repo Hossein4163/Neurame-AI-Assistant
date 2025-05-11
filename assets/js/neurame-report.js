@@ -82,7 +82,7 @@ waitForNeurameVars((vars) => {
                 fd.append('parent_goals', textarea.value.trim());
 
                 try {
-                    const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                    const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                     const json = await resp.json();
 
                     if (json.success) {
@@ -110,7 +110,7 @@ waitForNeurameVars((vars) => {
             fd.append('child_id', childId);
 
             try {
-                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
                 const container = document.getElementById('reports-list');
@@ -148,7 +148,7 @@ waitForNeurameVars((vars) => {
             fd.append('child_id', childId);
 
             try {
-                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
                 const container = document.getElementById('progress-report');
@@ -180,11 +180,11 @@ waitForNeurameVars((vars) => {
                                         r: {
                                             beginAtZero: true,
                                             max: 100,
-                                            ticks: { stepSize: 20 }
+                                            ticks: {stepSize: 20}
                                         },
                                     },
                                     plugins: {
-                                        legend: { position: 'top' },
+                                        legend: {position: 'top'},
                                         title: {
                                             display: true,
                                             text: 'روند پیشرفت مهارت‌ها'
@@ -228,7 +228,7 @@ waitForNeurameVars((vars) => {
             fd.append('parent_goals', parentGoals);
 
             try {
-                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
                 const responseContainer = document.getElementById('neurame-ai-response');
@@ -313,7 +313,7 @@ waitForNeurameVars((vars) => {
             fd.append('user_id', userId);
 
             try {
-                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
                 if (!json.success) {
@@ -402,8 +402,104 @@ function renderSkillChart(canvasId, labels, values) {
         },
         options: {
             scales: {
-                y: { beginAtZero: true, max: 100 }
+                y: {beginAtZero: true, max: 100}
             }
         }
     });
 }
+
+// 🚀 حذف و ویرایش گزارش‌ها
+
+// دکمه حذف گزارش
+document.addEventListener('click', async function (e) {
+    if (e.target.classList.contains('neurame-delete-report')) {
+        const reportId = e.target.getAttribute('data-report-id');
+        if (!reportId) return;
+
+        const confirmed = confirm('آیا از حذف این گزارش مطمئن هستید؟');
+        if (!confirmed) return;
+
+        const fd = new FormData();
+        fd.append('action', 'neurame_delete_trainer_report');
+        fd.append('nonce', neurame_vars.nonce_trainer_report);
+        fd.append('report_id', reportId);
+
+        try {
+            const res = await fetch(neurame_vars.ajax_url, {method: 'POST', body: fd});
+            const json = await res.json();
+            if (json.success) {
+                showToast('گزارش با موفقیت حذف شد.');
+                location.reload();
+            } else {
+                showToast(json.message || 'خطا در حذف گزارش.', 'error');
+            }
+        } catch (err) {
+            console.error('Delete error:', err);
+            showToast('خطای ارتباط با سرور.', 'error');
+        }
+    }
+});
+
+// فرم ویرایش اگر موجود نبود، بساز
+if (!document.getElementById('neurame-edit-modal')) {
+    const modal = document.createElement('div');
+    modal.id = 'neurame-edit-modal';
+    modal.style.display = 'none';
+    modal.innerHTML = `
+        <div style="position:fixed; top:0; left:0; width:100%; height:100%; background:#00000088; z-index:9999; display:flex; align-items:center; justify-content:center;">
+            <div style="background:#fff; padding:20px; max-width:500px; width:90%; border-radius:8px;">
+                <h3>✏️ ویرایش گزارش</h3>
+                <textarea id="neurame-edit-content" rows="5" class="w-full border p-2 my-3"></textarea>
+                <button id="neurame-edit-save" class="bg-green-600 text-white px-4 py-1 rounded">ذخیره</button>
+                <button id="neurame-edit-cancel" class="text-gray-600 ml-3">انصراف</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+let currentEditingId = '';
+
+document.addEventListener('click', function (e) {
+    if (e.target.classList.contains('neurame-edit-report')) {
+        currentEditingId = e.target.getAttribute('data-report-id');
+        const row = e.target.closest('tr');
+        const oldContent = row.querySelectorAll('td')[4]?.innerText || '';
+        document.getElementById('neurame-edit-content').value = oldContent;
+        document.getElementById('neurame-edit-modal').style.display = 'block';
+    }
+});
+
+document.getElementById('neurame-edit-cancel').addEventListener('click', () => {
+    document.getElementById('neurame-edit-modal').style.display = 'none';
+});
+
+document.getElementById('neurame-edit-save').addEventListener('click', async () => {
+    const newContent = document.getElementById('neurame-edit-content').value.trim();
+    if (!newContent || !currentEditingId) {
+        showToast('محتوای جدید وارد نشده است.', 'error');
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append('action', 'neurame_update_trainer_report');
+    fd.append('nonce', neurame_vars.nonce_trainer_report);
+    fd.append('report_id', currentEditingId);
+    fd.append('report_content', newContent);
+
+    try {
+        const res = await fetch(neurame_vars.ajax_url, {method: 'POST', body: fd});
+        const json = await res.json();
+        if (json.success) {
+            showToast('گزارش با موفقیت ویرایش شد.');
+            location.reload();
+        } else {
+            showToast(json.message || 'خطا در ویرایش گزارش.', 'error');
+        }
+    } catch (err) {
+        console.error('Edit error:', err);
+        showToast('خطا در ارتباط با سرور.', 'error');
+    }
+
+    document.getElementById('neurame-edit-modal').style.display = 'none';
+});
