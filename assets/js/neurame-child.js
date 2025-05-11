@@ -41,10 +41,6 @@ function showToast(message, type = 'success') {
 }
 
 waitForNeurameVars((vars) => {
-    if (vars.is_parent_mode) {
-        document.body.classList.add('neurame-parent-mode');
-    }
-
     const ajaxUrl = vars.ajax_url || '';
     const getNonce = vars.nonce_get_children || '';
     const nonceLoadBuyers = vars.nonce_load_buyers || '';
@@ -63,7 +59,7 @@ waitForNeurameVars((vars) => {
                 fd.append('action', 'neurame_load_trainers');
                 fd.append('nonce', nonceLoadTrainers);
 
-                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
+                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
                 const json = await resp.json();
 
                 if (json.success) {
@@ -98,7 +94,7 @@ waitForNeurameVars((vars) => {
                 fd.append('nonce', nonceLoadCourses);
                 fd.append('trainer_id', trainerId);
 
-                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
+                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
                 const json = await resp.json();
 
                 if (json.success) {
@@ -135,7 +131,7 @@ waitForNeurameVars((vars) => {
                 fd.append('nonce', nonceLoadBuyers);
                 fd.append('course_id', courseId);
 
-                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
+                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
                 const json = await resp.json();
 
                 if (json.success) {
@@ -174,7 +170,7 @@ waitForNeurameVars((vars) => {
                 fd.append('nonce', getNonce);
                 fd.append('user_id', userId);
 
-                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
+                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
                 const json = await resp.json();
 
                 if (json.success) {
@@ -224,7 +220,7 @@ waitForNeurameVars((vars) => {
                     showToast('لطفاً یک کاربر انتخاب کنید.', 'error');
                     return;
                 }
-                if (neurame_vars.is_parent_mode && !childId) {
+                if (!childId) {
                     showToast('لطفاً یک کودک انتخاب کنید.', 'error');
                     return;
                 }
@@ -239,13 +235,11 @@ waitForNeurameVars((vars) => {
                 fd.append('trainer_id', trainerId);
                 fd.append('course_id', courseId);
                 fd.append('user_id', userId);
-                if (neurame_vars.is_parent_mode) {
-                    fd.append('child_id', childId);
-                }
+                fd.append('child_id', childId);
                 fd.append('report_content', reportContent);
 
                 try {
-                    const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
+                    const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
                     const json = await resp.json();
 
                     if (json.success) {
@@ -261,6 +255,7 @@ waitForNeurameVars((vars) => {
                     showToast('خطا در ارتباط با سرور هنگام ذخیره گزارش.', 'error');
                 }
             });
+
             // رویداد انتخاب مربی
             $('#trainer_id').on('change', function () {
                 const trainerId = $(this).val();
