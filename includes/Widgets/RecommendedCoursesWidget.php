@@ -1,7 +1,10 @@
 <?php
+
+namespace Neurame\Widgets;
+
 if (!defined('ABSPATH')) exit;
 
-class NeurameAI_Recommended_Courses_Widget extends \Elementor\Widget_Base
+class RecommendedCoursesWidget extends \Elementor\Widget_Base
 {
     public function get_name()
     {

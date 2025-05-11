@@ -379,3 +379,31 @@ waitForNeurameVars((vars) => {
         }
     });
 });
+
+// ✅ Chart.js Setup for Progress Report
+function renderSkillChart(canvasId, labels, values) {
+    if (typeof Chart === 'undefined') {
+        console.warn("Chart.js not loaded");
+        return;
+    }
+
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'سطح مهارت',
+                data: values,
+                backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                y: { beginAtZero: true, max: 100 }
+            }
+        }
+    });
+}

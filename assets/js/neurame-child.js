@@ -303,3 +303,24 @@ waitForNeurameVars((vars) => {
         loadTrainers();
     });
 });
+
+// ✅ Toast Helper Function
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `neurame-toast ${type}`;
+    toast.textContent = message;
+    Object.assign(toast.style, {
+        position: 'fixed',
+        bottom: '20px',
+        right: '20px',
+        background: type === 'success' ? '#10b981' : '#ef4444',
+        color: '#fff',
+        padding: '12px 20px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+        zIndex: 9999,
+        transition: 'opacity 0.3s ease'
+    });
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}

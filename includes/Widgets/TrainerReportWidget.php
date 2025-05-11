@@ -1,10 +1,13 @@
 <?php
+
+namespace Neurame\Widgets;
+
 if (!defined('ABSPATH')) exit;
 
 use Elementor\Widget_Base;
 use Elementor\Controls_Manager;
 
-class NeurameAI_Trainer_Report_Widget extends Widget_Base
+class TrainerReportWidget extends Widget_Base
 {
     public function get_name()
     {

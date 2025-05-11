@@ -1,4 +1,7 @@
 <?php
+
+namespace Neurame\Widgets;
+
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly
 }
@@ -6,7 +9,7 @@ if (!defined('ABSPATH')) {
 use Elementor\Widget_Base;
 use Elementor\Controls_Manager;
 
-class NeurameAI_Child_Progress_Widget extends Widget_Base
+class ChildProgressWidget extends Widget_Base
 {
     public function get_name()
     {
