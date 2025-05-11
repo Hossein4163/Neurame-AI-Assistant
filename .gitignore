@@ -1,0 +1,59 @@
+# === PHP & WordPress ===
+*.log
+*.sql
+*.sqlite
+*.db
+*.bak
+*.tmp
+*.swp
+*.swo
+*.zip
+.DS_Store
+Thumbs.db
+
+# === WordPress-specific ===
+wp-content/uploads/
+wp-content/cache/
+wp-content/upgrade/
+wp-content/backup-*
+
+# === Plugin-specific ===
+/vendor/
+/node_modules/
+/.env
+.env.*
+/composer.lock
+package-lock.json
+yarn.lock
+
+# === IDEs & Editors ===
+.vscode/
+.idea/
+*.code-workspace
+
+# === OS Generated ===
+ehthumbs.db
+Icon?
+desktop.ini
+
+# === Build & Temp ===
+*.log
+*.gz
+*.tar
+*.tgz
+*.rar
+*.7z
+
+# === Logs ===
+/logs/
+logs/*.log
+
+# === Composer Artifacts ===
+/composer.phar
+*.lock
+
+# === AI Generated Data ===
+neurame-ai-output/
+ai-cache/
+__pycache__/
+*.pyc
