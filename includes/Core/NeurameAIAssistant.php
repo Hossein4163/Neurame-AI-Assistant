@@ -249,51 +249,59 @@ class NeurameAIAssistant
         global $neurame_ai_shortcode_loaded;
 
         if (is_account_page() || !empty($neurame_ai_shortcode_loaded)) {
-            wp_enqueue_style('neurame-frontend', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-styles.css', [], '1.2.0');
-            wp_enqueue_script('neurame-child', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-child.js', ['jquery'], '1.2.0', true);
-            wp_enqueue_script('neurame-report', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-report.js', ['jquery'], '1.2.0', true);
+            $assets_version = '1.2.0';
+            $script_dependencies = ['jquery'];
 
-            $neurame_vars = [
+            wp_enqueue_style('neurame-frontend', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-styles.css', [], $assets_version);
+            wp_enqueue_script('neurame-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-scripts.js', $script_dependencies, $assets_version, true);
+
+            $neural_vars = [
                 'ajax_url' => admin_url('admin-ajax.php'),
-                'nonce_load_buyers' => wp_create_nonce('neurame_load_buyers'),
-                'nonce_get_children' => wp_create_nonce('neurame_get_children'),
-                'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'), // اضافه کردن nonce
-                'ai_nonce' => wp_create_nonce('neurame_ai_recommendation'),
-                'nonce_get_reports' => wp_create_nonce('neurame_get_reports'),
-                'nonce_fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info'),
+                'nonce_actions' => [
+                    'load_buyers' => wp_create_nonce('neurame_load_buyers'),
+                    'get_children' => wp_create_nonce('neurame_get_children'),
+                    'trainer_report' => wp_create_nonce('neurame_trainer_report'),
+                    'ai_recommendation' => wp_create_nonce('neurame_ai_recommendation'),
+                    'get_reports' => wp_create_nonce('neurame_get_reports'),
+                    'fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info')
+                ],
                 'user_id' => get_current_user_id(),
-                'is_admin' => current_user_can('manage_options') ? true : false,
+                'is_admin' => current_user_can('manage_options')
             ];
 
-            wp_localize_script('neurame-child', 'neurame_vars', $neurame_vars);
-            wp_localize_script('neurame-report', 'neurame_vars', $neurame_vars);
-
-            wp_add_inline_script('neurame-report', 'console.log("Neurame Vars Loaded (frontend):", ' . wp_json_encode($neurame_vars) . ');');
+            wp_localize_script('neurame-scripts', 'neurame_vars', $neural_vars);
+            wp_add_inline_script('neurame-scripts', 'console.log("Neurame Vars Loaded:", ' . wp_json_encode($neural_vars) . ');');
         }
     }
 
     public function admin_enqueue_scripts($hook)
     {
-        Logger::info($hook);
-        if (!str_contains($hook, 'neurame-trainer-reports')) return;
+        if (strpos($hook, 'neurame-trainer-reports') === false) {
+            return;
+        }
 
-        wp_enqueue_style('neurame-admin', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-styles.min.css', [], '1.2.0');
-        wp_enqueue_script('neurame-report', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-report.js', ['jquery'], '1.2.0', true);
+        $assets_version = '1.2.0';
+        $script_dependencies = ['jquery'];
 
-        $neurame_vars = [
+        wp_enqueue_style('neurame-admin-styles', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-styles.min.css', [], $assets_version);
+        wp_enqueue_script('neurame-admin-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-scripts.js', $script_dependencies, $assets_version, true);
+
+        $admin_vars = [
             'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce_load_buyers' => wp_create_nonce('neurame_load_buyers'),
-            'nonce_get_children' => wp_create_nonce('neurame_get_children'),
-            'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'),
-            'ai_nonce' => wp_create_nonce('neurame_ai_recommendation'),
-            'nonce_get_reports' => wp_create_nonce('neurame_get_reports'),
-            'nonce_fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info'),
-            'nonce_save_parent_info' => wp_create_nonce('neurame_save_parent_info'),
+            'nonce_actions' => [
+                'load_buyers' => wp_create_nonce('neurame_load_buyers'),
+                'get_children' => wp_create_nonce('neurame_get_children'),
+                'trainer_report' => wp_create_nonce('neurame_trainer_report'),
+                'ai_recommendation' => wp_create_nonce('neurame_ai_recommendation'),
+                'get_reports' => wp_create_nonce('neurame_get_reports'),
+                'save_parent_info' => wp_create_nonce('neurame_save_parent_info')
+            ],
             'user_id' => get_current_user_id(),
-            'is_admin' => current_user_can('manage_options'),
+            'is_admin' => current_user_can('manage_options')
         ];
 
-        wp_localize_script('neurame-report', 'neurame_vars', $neurame_vars);
+        wp_localize_script('neurame-admin-scripts', 'neurame_admin_vars', $admin_vars);
+        wp_add_inline_script('neurame-scripts', 'console.log("Neurame Vars Loaded:", ' . wp_json_encode($admin_vars) . ');');
     }
 
     public function register_settings()
@@ -713,7 +721,7 @@ class NeurameAIAssistant
 
     public function fetch_ai_recommendation($data)
     {
-        // تمیز کردن بافر خروجی
+        // Cleaning output buffer
         if (ob_get_length()) {
             ob_clean();
         }
@@ -721,68 +729,47 @@ class NeurameAIAssistant
         $settings = get_option('neurame_settings', []);
         $api_type = $settings['neurame_api_type'] ?? 'none';
 
-        // لاگ‌گذاری شروع
+        // Logging start
         Logger::info('🚀 fetch_ai_recommendation: Starting with data - ' . json_encode($data, JSON_UNESCAPED_UNICODE));
 
-        // اعتبارسنجی تنظیمات API
+        // Validate AI settings
         if ($api_type === 'none') {
             Logger::info('❌ fetch_ai_recommendation: No AI API selected');
             return $this->send_json_response(false, __('هیچ API هوش مصنوعی انتخاب نشده است.', 'neurame-ai-assistant'));
         }
 
-        // اعتبارسنجی کلید API
         $api_key = $api_type === 'chatgpt' ? ($settings['neurame_chatgpt_api_key'] ?? '') : ($settings['neurame_gemini_api_key'] ?? '');
         if (empty($api_key)) {
             Logger::info('❌ fetch_ai_recommendation: Missing API key for ' . $api_type);
             return $this->send_json_response(false, __('کلید API برای ' . $api_type . ' تنظیم نشده است.', 'neurame-ai-assistant'));
         }
 
-        // اعتبارسنجی داده‌های ورودی
         if (empty($data['child_age']) || empty($data['child_interests']) || empty($data['parent_goals'])) {
             Logger::info('❌ fetch_ai_recommendation: Invalid input data - ' . json_encode($data, JSON_UNESCAPED_UNICODE));
             return $this->send_json_response(false, __('داده‌های ورودی ناقص یا نامعتبر هستند.', 'neurame-ai-assistant'));
         }
 
-        // دریافت لیست دوره‌های موجود
-        $courses = wc_get_products([
-            'limit' => -1,
-            'status' => 'publish',
-            'type' => ['simple', 'variable'], // فقط محصولات ساده و متغیر
-        ]);
-        $course_list = [];
-        foreach ($courses as $course) {
-            $course_id = $course->get_id();
-            $permalink = get_permalink($course_id);
-            if (!$permalink) {
-                Logger::info('⚠️ fetch_ai_recommendation: Failed to get permalink for course ID=' . $course_id . ', Name=' . $course->get_name());
-                $permalink = '';
-            } else {
-                Logger::info('✅ fetch_ai_recommendation: Permalink generated for course ID=' . $course_id . ', URL=' . $permalink);
-            }
-            $course_list[] = [
-                'course_id' => (string)$course_id,
+        $courses = wc_get_products(['limit' => -1, 'status' => 'publish', 'type' => ['simple', 'variable']]);
+        $course_list = array_map(function ($course) {
+            return [
+                'course_id' => (string)$course->get_id(),
                 'course_name' => $course->get_name(),
-                'course_url' => $permalink
+                'course_url' => get_permalink($course->get_id()) ?: '',
             ];
-            Logger::info('📚 Course Loaded: ID=' . $course_id . ', Name=' . $course->get_name() . ', URL=' . ($permalink ?: 'MISSING'));
-        }
+        }, $courses);
 
         if (empty($course_list)) {
             Logger::info('❌ fetch_ai_recommendation: No published courses found');
-            return $this->send_json_response(false, __('هیچ دوره‌ای در سیستم یافت نشد. لطفاً مطمئن شوید که محصولات ووکامرس منتشر شده‌اند.', 'neurame-ai-assistant'));
+            return $this->send_json_response(false, __('هیچ دوره‌ای در سیستم یافت نشد.', 'neurame-ai-assistant'));
         }
 
-        $course_list_text = implode("\n", array_map(function ($course) {
-            return "- ID: {$course['course_id']}, نام: {$course['course_name']}, URL: {$course['course_url']}";
-        }, $course_list));
-        Logger::info('📚 Available Courses: ' . substr($course_list_text, 0, 200));
+        $course_list_text = implode("\n", array_map(fn($course) => "- ID: {$course['course_id']}, نام: {$course['course_name']}, URL: {$course['course_url']}", $course_list));
 
-        // ساخت پرامپت
         $prompt = sprintf(
             "برای کودکی با سن %d سال، علاقه‌مندی‌های '%s' و اهداف والدین '%s'، دوره‌های آموزشی مناسب را پیشنهاد دهید. " .
             "فقط از دوره‌های زیر انتخاب کنید و دوره‌های دیگر را پیشنهاد ندهید:\n%s\n\n" .
-            "پاسخ را حتماً به صورت JSON معتبر با فرمت زیر ارائه دهید و فقط JSON را برگردانید، بدون هیچ متن اضافی یا فرمت Markdown (مثل ```json):\n" .
-            "{\n  \"courses\": [\n    {\"course_id\": \"\", \"course_name\": \"\", \"course_url\": \"\"},\n    ...\n  ]\n}",
+            "پاسخ را حتماً به صورت JSON معتبر با فرمت زیر ارائه دهید و فقط JSON را برگردانید:\n" .
+            "{\"courses\": [{\"course_id\": \"\", \"course_name\": \"\", \"course_url\": \"\"}, ...]}",
             $data['child_age'],
             $data['child_interests'],
             $data['parent_goals'],
@@ -793,36 +780,26 @@ class NeurameAIAssistant
             $prompt .= "\n\nنام کودک: " . $data['child_name'];
         }
 
-        // لاگ‌گذاری پرامپت
         Logger::info('📝 AI Prompt: ' . substr($prompt, 0, 200));
 
         try {
-            // صدا زدن API
             $response = $this->call_ai_api($prompt, $settings);
-
             if (empty($response['success'])) {
                 Logger::info('❌ AI API Error: ' . json_encode($response, JSON_UNESCAPED_UNICODE));
                 return $this->send_json_response(false, __('خطا در پاسخ API: ', 'neurame-ai-assistant') . ($response['data'] ?? 'خطای ناشناخته'));
             }
 
-            // لاگ‌گذاری پاسخ خام
             Logger::info('📬 AI Raw Response: ' . substr($response['data'], 0, 200));
 
-            // حذف Markdown اضافی
-            $cleaned_response = preg_replace('/^```json\s*|\s*```$|^```/', '', $response['data']);
-            $cleaned_response = trim($cleaned_response);
-
-            // لاگ‌گذاری پاسخ پاک‌شده
+            $cleaned_response = trim(preg_replace('/^```json\s*|\s*```$|^```/', '', $response['data']));
             Logger::info('🧹 Cleaned AI Response: ' . substr($cleaned_response, 0, 200));
 
-            // تبدیل JSON به آرایه
             $json = json_decode($cleaned_response, true);
-            if (json_last_error() !== JSON_ERROR_NONE || !$json || !isset($json['courses']) || !is_array($json['courses'])) {
-                Logger::info('❌ Invalid JSON Format: ' . json_last_error_msg() . ' | Raw Response: ' . substr($cleaned_response, 0, 200));
+            if (json_last_error() !== JSON_ERROR_NONE || !$json || empty($json['courses']) || !is_array($json['courses'])) {
+                Logger::info('❌ Invalid JSON Format: ' . json_last_error_msg());
                 return $this->send_json_response(false, __('پاسخ API در فرمت JSON معتبر نیست: ', 'neurame-ai-assistant') . json_last_error_msg());
             }
 
-            // اعتبارسنجی و تکمیل دوره‌ها
             $valid_courses = [];
             $course_map = array_column($course_list, null, 'course_id');
             foreach ($json['courses'] as $item) {
@@ -830,29 +807,27 @@ class NeurameAIAssistant
                     Logger::info('⚠️ Invalid Course Suggested: ' . json_encode($item, JSON_UNESCAPED_UNICODE));
                     continue;
                 }
-                $course_data = $course_map[$item['course_id']];
-                $valid_course = [
+                $course = $course_map[$item['course_id']];
+                $valid_courses[] = [
                     'course_id' => $item['course_id'],
-                    'course_name' => $item['course_name'] ?: $course_data['course_name'],
-                    'course_url' => $course_data['course_url']
+                    'course_name' => $item['course_name'] ?: $course['course_name'],
+                    'course_url' => $course['course_url'],
                 ];
-                $valid_courses[] = $valid_course;
-                Logger::info('✅ Valid Course Added: ID=' . $valid_course['course_id'] . ', Name=' . $valid_course['course_name'] . ', URL=' . ($valid_course['course_url'] ?: 'MISSING'));
             }
 
             if (empty($valid_courses)) {
                 Logger::info('❌ No Valid Courses Found in AI Response');
-                return $this->send_json_response(false, __('هیچ دوره معتبری پیشنهاد نشد. لطفاً مطمئن شوید که دوره‌ها در ووکامرس موجود و منتشر شده‌اند.', 'neurame-ai-assistant'));
+                return $this->send_json_response(false, __('هیچ دوره معتبری پیشنهاد نشد.', 'neurame-ai-assistant'));
             }
 
             Logger::info('✅ AI Recommendation Success: ' . count($valid_courses) . ' valid courses found');
             return $this->send_json_response(true, [
                 'html' => $this->render_recommended_courses($valid_courses),
-                'courses' => $valid_courses
+                'courses' => $valid_courses,
             ]);
 
         } catch (\Throwable $e) {
-            Logger::info('❌ fetch_ai_recommendation Exception: ' . $e->getMessage() . ' | Stack Trace: ' . substr($e->getTraceAsString(), 0, 200));
+            Logger::info('❌ fetch_ai_recommendation Exception: ' . $e->getMessage());
             return $this->send_json_response(false, __('خطای داخلی در پردازش API: ', 'neurame-ai-assistant') . $e->getMessage());
         }
     }

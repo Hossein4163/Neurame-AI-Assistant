@@ -1,16 +1,9 @@
 function waitForNeurameVars(callback, maxAttempts = 50, interval = 100) {
     let attempts = 0;
     const check = () => {
-        if (typeof neurame_vars !== 'undefined') {
-            callback(neurame_vars);
-        } else {
-            attempts++;
-            if (attempts < maxAttempts) {
-                setTimeout(check, interval);
-            } else {
-                console.error('Neurame Error: neurame_vars is not defined.');
-                showToast('خطا: تنظیمات افزونه بارگذاری نشد.', 'error');
-            }
+        if (typeof neurame_vars === 'undefined') {
+            console.error('Neurame Error: `neurame_vars` is not defined. Please ensure it is properly localized in PHP.');
+            showToast('خطا: تنظیمات افزونه بارگذاری نشد.', 'error');
         }
     };
     check();
@@ -59,7 +52,7 @@ waitForNeurameVars((vars) => {
                 fd.append('action', 'neurame_load_trainers');
                 fd.append('nonce', nonceLoadTrainers);
 
-                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
                 if (json.success) {
@@ -94,7 +87,7 @@ waitForNeurameVars((vars) => {
                 fd.append('nonce', nonceLoadCourses);
                 fd.append('trainer_id', trainerId);
 
-                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
                 if (json.success) {
@@ -131,7 +124,7 @@ waitForNeurameVars((vars) => {
                 fd.append('nonce', nonceLoadBuyers);
                 fd.append('course_id', courseId);
 
-                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
                 if (json.success) {
@@ -170,7 +163,7 @@ waitForNeurameVars((vars) => {
                 fd.append('nonce', getNonce);
                 fd.append('user_id', userId);
 
-                const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
                 if (json.success) {
@@ -239,7 +232,7 @@ waitForNeurameVars((vars) => {
                 fd.append('report_content', reportContent);
 
                 try {
-                    const resp = await fetch(ajaxUrl, { method: 'POST', body: fd });
+                    const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                     const json = await resp.json();
 
                     if (json.success) {

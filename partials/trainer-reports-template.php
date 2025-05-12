@@ -20,12 +20,12 @@ if ($edit_id !== null) {
 ?>
 
 <div class="wrap">
-    <h2 class="text-2xl font-semibold mb-6">
+    <h2 class="text-3xl font-bold mb-8">
         <?php echo $editing ? esc_html__('✏️ ویرایش گزارش مربی', 'neurame-ai-assistant') : esc_html__('📝 ثبت گزارش مربی', 'neurame-ai-assistant'); ?>
     </h2>
 
     <form id="trainer-report-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
-          class="space-y-6 max-w-2xl">
+          class="space-y-8 max-w-3xl bg-white p-6 shadow-md rounded-lg">
         <input type="hidden" name="action" value="neurame_trainer_report">
         <?php wp_nonce_field('neurame_trainer_report', 'neurame_nonce'); ?>
         <?php if ($editing): ?>
@@ -33,9 +33,10 @@ if ($edit_id !== null) {
         <?php endif; ?>
 
         <!-- مربی -->
-        <div>
-            <label for="trainer_id" class="block text-sm font-medium text-gray-700 mb-1">مربی</label>
-            <select name="trainer_id" id="trainer_id" class="block w-full p-2 border rounded-lg" required>
+        <div class="form-group">
+            <label for="trainer_id" class="block text-lg font-medium text-gray-800 mb-2">انتخاب مربی</label>
+            <select name="trainer_id" id="trainer_id"
+                    class="block w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-blue-300" required>
                 <option value="">یک مربی انتخاب کنید</option>
                 <?php
                 $trainers = get_users(['role' => 'trainer']);
@@ -50,9 +51,10 @@ if ($edit_id !== null) {
         </div>
 
         <!-- دوره -->
-        <div>
-            <label for="course_id" class="block text-sm font-medium text-gray-700 mb-1">دوره</label>
-            <select name="course_id" id="course_id" class="block w-full p-2 border rounded-lg" required>
+        <div class="form-group">
+            <label for="course_id" class="block text-lg font-medium text-gray-800 mb-2">انتخاب دوره</label>
+            <select name="course_id" id="course_id"
+                    class="block w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-blue-300" required>
                 <option value="">یک دوره انتخاب کنید</option>
                 <?php
                 $courses = wc_get_products(['limit' => -1]);
@@ -67,41 +69,44 @@ if ($edit_id !== null) {
         </div>
 
         <!-- کاربر -->
-        <div>
-            <label for="user_id" class="block text-sm font-medium text-gray-700 mb-1">کاربر خریدار</label>
+        <div class="form-group">
+            <label for="user_id" class="block text-lg font-medium text-gray-800 mb-2">کاربر خریدار</label>
             <input type="number" name="user_id" id="user_id"
                    value="<?php echo esc_attr($edit_data['user_id'] ?? ''); ?>"
-                   class="block w-full p-2 border rounded-lg" required>
+                   class="block w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-blue-300" required>
         </div>
 
         <!-- کودک -->
-        <div>
-            <label for="child_id" class="block text-sm font-medium text-gray-700 mb-1">کودک</label>
+        <div class="form-group">
+            <label for="child_id" class="block text-lg font-medium text-gray-800 mb-2">کودک</label>
             <input type="text" name="child_id" id="child_id"
                    value="<?php echo esc_attr($edit_data['child_id'] ?? ''); ?>"
-                   class="block w-full p-2 border rounded-lg">
+                   class="block w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-blue-300">
         </div>
 
         <!-- محتوا -->
-        <div>
-            <label for="report_content" class="block text-sm font-medium text-gray-700 mb-1">محتوای گزارش</label>
-            <textarea name="report_content" id="report_content" rows="5" class="block w-full p-2 border rounded-lg"
+        <div class="form-group">
+            <label for="report_content" class="block text-lg font-medium text-gray-800 mb-2">محتوای گزارش</label>
+            <textarea name="report_content" id="report_content" rows="6"
+                      class="block w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-blue-300"
                       required><?php echo esc_textarea($edit_data['content'] ?? ''); ?></textarea>
         </div>
 
         <!-- دکمه‌ها -->
-        <div class="flex items-center gap-4">
-            <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+        <div class="flex flex-col md:flex-row gap-4">
+            <button type="submit"
+                    class="bg-blue-600 text-white font-bold px-6 py-3 rounded-lg hover:bg-blue-700 transition duration-300">
                 <?php echo $editing ? 'ذخیره و بروزرسانی گزارش' : 'ذخیره گزارش'; ?>
             </button>
 
             <?php if ($editing): ?>
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
-                      onsubmit="return confirm('آیا از حذف گزارش مطمئن هستید؟');" class="inline-block ml-4">
+                      onsubmit="return confirm('آیا از حذف گزارش مطمئن هستید؟');" class="inline-block">
                     <input type="hidden" name="action" value="neurame_delete_report">
                     <?php wp_nonce_field('neurame_delete_report', 'neurame_nonce'); ?>
                     <input type="hidden" name="report_id" value="<?php echo esc_attr($edit_id); ?>">
-                    <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700">
+                    <button type="submit"
+                            class="bg-red-600 text-white font-bold px-6 py-3 rounded-lg hover:bg-red-700 transition duration-300">
                         حذف گزارش
                     </button>
                 </form>
