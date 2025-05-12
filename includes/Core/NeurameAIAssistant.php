@@ -3,6 +3,7 @@
 namespace Neurame\Core;
 
 use Neurame\Utils\Logger;
+use Throwable;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -253,14 +254,15 @@ class NeurameAIAssistant
             $script_dependencies = ['jquery'];
 
             wp_enqueue_style('neurame-frontend', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-styles.css', [], $assets_version);
-            wp_enqueue_script('neurame-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-scripts.js', $script_dependencies, $assets_version, true);
+            wp_enqueue_script('neurame-report-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-report.js', $script_dependencies, $assets_version, true);
+            wp_enqueue_script('neurame-child-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-child.js', $script_dependencies, $assets_version, true);
 
             $neural_vars = [
                 'ajax_url' => admin_url('admin-ajax.php'),
                 'nonce_actions' => [
                     'load_buyers' => wp_create_nonce('neurame_load_buyers'),
                     'get_children' => wp_create_nonce('neurame_get_children'),
-                    'trainer_report' => wp_create_nonce('neurame_trainer_report'),
+                    'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'),
                     'ai_recommendation' => wp_create_nonce('neurame_ai_recommendation'),
                     'get_reports' => wp_create_nonce('neurame_get_reports'),
                     'fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info')
@@ -269,8 +271,10 @@ class NeurameAIAssistant
                 'is_admin' => current_user_can('manage_options')
             ];
 
-            wp_localize_script('neurame-scripts', 'neurame_vars', $neural_vars);
-            wp_add_inline_script('neurame-scripts', 'console.log("Neurame Vars Loaded:", ' . wp_json_encode($neural_vars) . ');');
+            wp_localize_script('neurame-report-scripts', 'neurame_vars', $neural_vars);
+            wp_localize_script('neurame-child-scripts', 'neurame_vars', $neural_vars);
+
+            wp_add_inline_script('neurame-report-scripts', 'console.log("Neurame Vars Loaded:", ' . wp_json_encode($neural_vars) . ');');
         }
     }
 
@@ -284,7 +288,8 @@ class NeurameAIAssistant
         $script_dependencies = ['jquery'];
 
         wp_enqueue_style('neurame-admin-styles', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-styles.min.css', [], $assets_version);
-        wp_enqueue_script('neurame-admin-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-scripts.js', $script_dependencies, $assets_version, true);
+        wp_enqueue_script('neurame-report-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-report.js', $script_dependencies, $assets_version, true);
+        wp_enqueue_script('neurame-child-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-child.js', $script_dependencies, $assets_version, true);
 
         $admin_vars = [
             'ajax_url' => admin_url('admin-ajax.php'),
@@ -300,8 +305,10 @@ class NeurameAIAssistant
             'is_admin' => current_user_can('manage_options')
         ];
 
-        wp_localize_script('neurame-admin-scripts', 'neurame_admin_vars', $admin_vars);
-        wp_add_inline_script('neurame-scripts', 'console.log("Neurame Vars Loaded:", ' . wp_json_encode($admin_vars) . ');');
+        wp_localize_script('neurame-report-scripts', 'neurame_admin_vars', $admin_vars);
+        wp_localize_script('neurame-child-scripts', 'neurame_admin_vars', $admin_vars);
+
+        wp_add_inline_script('neurame-report-scripts', 'console.log("Neurame Vars Loaded:", ' . wp_json_encode($admin_vars) . ');');
     }
 
     public function register_settings()
@@ -664,7 +671,9 @@ class NeurameAIAssistant
         if (!$user_id || $child_index < 0) {
             $child_id = sanitize_text_field($_POST['child_id'] ?? '');
             if ($child_id) {
-                list($user_id, $child_index) = array_map(static fn($val) => absint($val), explode('_', $child_id));
+                list($user_id, $child_index) = array_map(static function ($val) {
+                    return absint($val);
+                }, explode('_', $child_id));
                 Logger::info("📝 handle_fetch_ai_recommendation: Parsed child_id=$child_id to user_id=$user_id, child_index=$child_index");
             }
         }
@@ -702,7 +711,7 @@ class NeurameAIAssistant
 
         try {
             $ai_response = $this->fetch_ai_recommendation($data);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Logger::info('❌ AI Recommendation Exception: ' . $e->getMessage() . ' | Stack Trace: ' . $e->getTraceAsString());
             wp_send_json_error(['message' => __('یک خطای داخلی رخ داد.', 'neurame-ai-assistant')], 500);
         }
@@ -826,7 +835,7 @@ class NeurameAIAssistant
                 'courses' => $valid_courses,
             ]);
 
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Logger::info('❌ fetch_ai_recommendation Exception: ' . $e->getMessage());
             return $this->send_json_response(false, __('خطای داخلی در پردازش API: ', 'neurame-ai-assistant') . $e->getMessage());
         }
@@ -2128,6 +2137,18 @@ EOD;
         }
 
         Logger::info('🧹 لاگ‌ها پاک‌سازی شدند توسط کرون');
+    }
+
+    private function get_child_name($child_id)
+    {
+        list($user_id, $index) = explode('_', $child_id);
+        $children = get_user_meta($user_id, 'neurame_children', true);
+
+        if (isset($children[$index])) {
+            return $children[$index]['name'];
+        }
+
+        return __('ناشناس', 'neurame-ai-assistant');
     }
 
 }
