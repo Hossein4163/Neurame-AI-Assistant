@@ -63,6 +63,54 @@ waitForNeurameVars((vars) => {
     const isAdmin = vars.is_admin || false;
 
     document.addEventListener('DOMContentLoaded', () => {
+        const courseSelect = document.getElementById('course_id');
+        const userSelect = document.getElementById('user_id');
+
+        if (courseSelect && userSelect) {
+            courseSelect.addEventListener('change', async () => {
+                const courseId = courseSelect.value;
+                if (!courseId) return;
+
+                const fd = new FormData();
+                fd.append('action', 'neurame_load_buyers');
+                fd.append('nonce', neurame_vars.nonce_load_buyers);
+                fd.append('course_id', courseId);
+
+                console.log('🚀 courseId selected:', courseId);
+
+                try {
+                    const res = await fetch(neurame_vars.ajax_url, {
+                        method: 'POST',
+                        body: fd,
+                    });
+                    const json = await res.json();
+
+                    userSelect.innerHTML = ''; // پاک‌سازی قبلی
+                    if (json.success && json.data.length > 0) {
+                        const defaultOption = document.createElement('option');
+                        defaultOption.value = '';
+                        defaultOption.textContent = 'یک کاربر را انتخاب کنید';
+                        userSelect.appendChild(defaultOption);
+
+                        json.data.forEach(user => {
+                            const opt = document.createElement('option');
+                            opt.value = user.id;
+                            opt.textContent = user.name;
+                            userSelect.appendChild(opt);
+                        });
+                    } else {
+                        const opt = document.createElement('option');
+                        opt.value = '';
+                        opt.textContent = 'کاربری یافت نشد';
+                        userSelect.appendChild(opt);
+                    }
+                } catch (err) {
+                    console.error('Load buyers error:', err);
+                    showToast('خطا در دریافت کاربران خریدار.', 'error');
+                }
+            });
+        }
+
         // ذخیره پروفایل والدین بدون ریدایرکت
         const saveProfileBtn = document.getElementById('save-parent-profile');
         if (saveProfileBtn) {
@@ -409,8 +457,6 @@ function renderSkillChart(canvasId, labels, values) {
 }
 
 // 🚀 حذف و ویرایش گزارش‌ها
-
-// دکمه حذف گزارش
 document.addEventListener('click', async function (e) {
     if (e.target.classList.contains('neurame-delete-report')) {
         const reportId = e.target.getAttribute('data-report-id');

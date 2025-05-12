@@ -274,29 +274,26 @@ class NeurameAIAssistant
 
     public function admin_enqueue_scripts($hook)
     {
-        if (is_admin()) {
-            wp_enqueue_style('neurame-admin', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-styles.min.css', [], '1.2.0');
-            wp_enqueue_script('neurame-child', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-child.js', ['jquery'], '1.2.0', true);
-            wp_enqueue_script('neurame-report', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-report.js', ['jquery'], '1.2.0', true);
+        Logger::info($hook);
+        if (!str_contains($hook, 'neurame-trainer-reports')) return;
 
-            $neurame_vars = [
-                'ajax_url' => admin_url('admin-ajax.php'),
-                'nonce_load_buyers' => wp_create_nonce('neurame_load_buyers'), // اضافه کردن nonce
-                'nonce_get_children' => wp_create_nonce('neurame_get_children'),
-                'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'),
-                'ai_nonce' => wp_create_nonce('neurame_ai_recommendation'),
-                'nonce_get_reports' => wp_create_nonce('neurame_get_reports'),
-                'nonce_fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info'),
-                'nonce_save_parent_info' => wp_create_nonce('neurame_save_parent_info'),
-                'user_id' => get_current_user_id(),
-                'is_admin' => true,
-            ];
+        wp_enqueue_style('neurame-admin', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-styles.min.css', [], '1.2.0');
+        wp_enqueue_script('neurame-report', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-report.js', ['jquery'], '1.2.0', true);
 
-            wp_localize_script('neurame-child', 'neurame_vars', $neurame_vars);
-            wp_localize_script('neurame-report', 'neurame_vars', $neurame_vars);
+        $neurame_vars = [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce_load_buyers' => wp_create_nonce('neurame_load_buyers'),
+            'nonce_get_children' => wp_create_nonce('neurame_get_children'),
+            'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'),
+            'ai_nonce' => wp_create_nonce('neurame_ai_recommendation'),
+            'nonce_get_reports' => wp_create_nonce('neurame_get_reports'),
+            'nonce_fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info'),
+            'nonce_save_parent_info' => wp_create_nonce('neurame_save_parent_info'),
+            'user_id' => get_current_user_id(),
+            'is_admin' => current_user_can('manage_options'),
+        ];
 
-            wp_add_inline_script('neurame-report', 'console.log("Neurame Vars Loaded (admin):", ' . wp_json_encode($neurame_vars) . ');');
-        }
+        wp_localize_script('neurame-report', 'neurame_vars', $neurame_vars);
     }
 
     public function register_settings()
@@ -1530,7 +1527,6 @@ class NeurameAIAssistant
         $parent_mode = get_option('neurame_settings')['neurame_parent_mode'] ?? 0;
         $current_user_id = get_current_user_id();
         $is_admin = current_user_can('manage_options');
-
         ?>
         <div class="wrap">
             <h1 class="text-3xl font-bold mb-6"><?php echo esc_html__('گزارش‌های مربی', 'neurame-ai-assistant'); ?></h1>
@@ -1538,6 +1534,15 @@ class NeurameAIAssistant
 
             <?php
             $reports = $this->get_trainer_reports();
+
+            if (!is_array($reports)) {
+                $reports = [];
+            }
+
+            // حذف گزارش‌های ناقص
+            $reports = array_filter($reports, function ($r) {
+                return isset($r['trainer_id'], $r['course_id'], $r['user_id'], $r['content']);
+            });
 
             // فقط گزارش‌های متعلق به مربی فعلی، مگر اینکه ادمینه
             if (!$is_admin) {
@@ -1557,19 +1562,26 @@ class NeurameAIAssistant
                 echo '</tr></thead><tbody>';
 
                 foreach ($reports as $report) {
-                    $trainer = get_user_by('id', $report['trainer_id']);
-                    $course = wc_get_product($report['course_id']);
-                    $user = get_user_by('id', $report['user_id']);
-                    $child_name = $parent_mode && !empty($report['child_id']) ? $this->get_child_name($report['child_id']) : '';
+                    $trainer_id = $report['trainer_id'] ?? 0;
+                    $course_id = $report['course_id'] ?? 0;
+                    $user_id = $report['user_id'] ?? 0;
+                    $child_id = $report['child_id'] ?? '';
+                    $content = $report['content'] ?? '';
+                    $ai_content = $report['ai_content'] ?? '';
                     $report_id = esc_attr($report['id'] ?? '');
+
+                    $trainer = get_user_by('id', $trainer_id);
+                    $course = wc_get_product($course_id);
+                    $user = get_user_by('id', $user_id);
+                    $child_name = ($parent_mode && !empty($child_id)) ? $this->get_child_name($child_id) : '';
 
                     echo '<tr>';
                     echo '<td>' . esc_html($trainer ? $trainer->display_name : 'ناشناس') . '</td>';
                     echo '<td>' . esc_html($course ? $course->get_name() : 'ناشناس') . '</td>';
                     echo '<td>' . esc_html($user ? $user->display_name : 'ناشناس') . '</td>';
                     if ($parent_mode) echo '<td>' . esc_html($child_name) . '</td>';
-                    echo '<td>' . esc_html($report['content']) . '</td>';
-                    echo '<td>' . esc_html($report['ai_content'] ?? $report['content']) . '</td>';
+                    echo '<td>' . esc_html($content) . '</td>';
+                    echo '<td>' . esc_html($ai_content) . '</td>';
                     echo '<td>';
                     echo '<button class="neurame-edit-report text-blue-600" data-report-id="' . $report_id . '">✏️</button> ';
                     echo '<button class="neurame-delete-report text-red-600" data-report-id="' . $report_id . '">🗑</button>';
@@ -1825,6 +1837,8 @@ class NeurameAIAssistant
             wp_send_json_error(['message' => 'دوره انتخاب نشده است.']);
         }
 
+        Logger::info('🧪 Buyers AJAX triggered: course_id=' . $course_id);
+
         Logger::info('📦 ajax_load_buyers: Loading buyers for course_id=' . $course_id);
 
         global $wpdb;
@@ -1846,7 +1860,7 @@ class NeurameAIAssistant
 
         // لود سفارش‌ها با وضعیت completed یا processing
         $orders = wc_get_orders([
-            'limit' => 50, // محدود کردن برای بهبود عملکرد
+            'limit' => -1, // محدود کردن برای بهبود عملکرد
             'status' => ['completed', 'processing'],
             'post__in' => $order_ids, // فقط سفارش‌های مرتبط با محصول
         ]);
@@ -1857,6 +1871,9 @@ class NeurameAIAssistant
             if (!$user) {
                 continue; // رد کردن سفارش‌های بدون کاربر (مثلاً مهمان)
             }
+
+            Logger::info("✅ یافت شد: user_id={$user->ID}, name={$user->display_name}, roles=" . implode(',', $user->roles));
+            Logger::info('👤 بررسی سفارش: order_id=' . $order->get_id() . ', user=' . ($user ? $user->ID : 'مهمان'));
 
             // فقط کاربرانی که نقش trainer ندارن
             if (!in_array('trainer', (array)$user->roles)) {
