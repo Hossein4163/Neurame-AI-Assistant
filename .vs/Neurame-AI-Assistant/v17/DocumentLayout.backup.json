@@ -1,0 +1,54 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "X:\\Projects\\Wordpress\\Plugins\\Neurame-AI-Assistant\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\Projects\\Wordpress\\Plugins\\Neurame-AI-Assistant\\includes\\Core\\NeurameAIAssistant.php||{FA3CD31E-987B-443A-9B81-186104E8DAC1}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:includes\\Core\\NeurameAIAssistant.php||{FA3CD31E-987B-443A-9B81-186104E8DAC1}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|X:\\Projects\\Wordpress\\Plugins\\Neurame-AI-Assistant\\vendor\\autoload.php||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:vendor\\autoload.php||{8B382828-6202-11D1-8870-0000F87579D2}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "NeurameAIAssistant.php",
+              "DocumentMoniker": "X:\\Projects\\Wordpress\\Plugins\\Neurame-AI-Assistant\\includes\\Core\\NeurameAIAssistant.php",
+              "RelativeDocumentMoniker": "includes\\Core\\NeurameAIAssistant.php",
+              "ToolTip": "X:\\Projects\\Wordpress\\Plugins\\Neurame-AI-Assistant\\includes\\Core\\NeurameAIAssistant.php",
+              "RelativeToolTip": "includes\\Core\\NeurameAIAssistant.php",
+              "ViewState": "AgIAAKsAAAAAAAAAAAAAAMYAAAApAAAAAAAAAA==",
+              "Icon": "89320d42-7831-4f47-839a-c227d3a60919.000001|",
+              "WhenOpened": "2025-05-13T11:13:51.301Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "autoload.php",
+              "DocumentMoniker": "X:\\Projects\\Wordpress\\Plugins\\Neurame-AI-Assistant\\vendor\\autoload.php",
+              "RelativeDocumentMoniker": "vendor\\autoload.php",
+              "ToolTip": "X:\\Projects\\Wordpress\\Plugins\\Neurame-AI-Assistant\\vendor\\autoload.php",
+              "RelativeToolTip": "vendor\\autoload.php",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABYAAAAAAAAAAAAAAA==",
+              "Icon": "89320d42-7831-4f47-839a-c227d3a60919.000001|",
+              "WhenOpened": "2025-05-13T11:12:42.784Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

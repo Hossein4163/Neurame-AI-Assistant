@@ -419,8 +419,9 @@ waitForNeurameVars((vars) => {
         if (reportChildSelect) {
             reportChildSelect.addEventListener('change', async () => {
                 const childId = reportChildSelect.value.trim();
-                const reportType = reportTypeSelect ? reportTypeSelect.value : '';
-                if (reportType === 'reports' || reportType === 'progress') {
+
+                // اگر مقدار انتخاب شده خالی نیست، لود کن
+                if (childId) {
                     await loadReportsAndProgress(childId);
                 }
             });

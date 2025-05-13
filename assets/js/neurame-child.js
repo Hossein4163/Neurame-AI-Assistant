@@ -1,9 +1,16 @@
 function waitForNeurameVars(callback, maxAttempts = 50, interval = 100) {
     let attempts = 0;
     const check = () => {
-        if (typeof neurame_vars === 'undefined') {
-            console.error('Neurame Error: `neurame_vars` is not defined. Please ensure it is properly localized in PHP.');
-            showToast('خطا: تنظیمات افزونه بارگذاری نشد.', 'error');
+        if (typeof neurame_vars !== 'undefined') {
+            callback(neurame_vars);
+        } else {
+            attempts++;
+            if (attempts < maxAttempts) {
+                setTimeout(check, interval);
+            } else {
+                console.error('Neurame Error: `neurame_vars` is not defined after max attempts.');
+                showToast('خطا: تنظیمات افزونه بارگذاری نشد.', 'error');
+            }
         }
     };
     check();
@@ -34,15 +41,132 @@ function showToast(message, type = 'success') {
 }
 
 waitForNeurameVars((vars) => {
+    console.log('✅ neurame_vars آماده شد:', vars);
+
     const ajaxUrl = vars.ajax_url || '';
     const getNonce = vars.nonce_get_children || '';
+    const nonceUpdateChild = neurame_vars.nonce_update_child || '';
+    const nonceDeleteChild = neurame_vars.nonce_delete_child || '';
     const nonceLoadBuyers = vars.nonce_load_buyers || '';
     const nonceTrainerReport = vars.nonce_trainer_report || '';
     const nonceLoadTrainers = vars.nonce_load_trainers || '';
     const nonceLoadCourses = vars.nonce_load_courses || '';
 
-    document.addEventListener('DOMContentLoaded', () => {
-        // لود مربیان هنگام بارگذاری صفحه
+    function initForm() {
+        console.log('🚀 initForm اجرا شد');
+
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.manage-children-btn');
+            if (!btn) return;
+
+            const userId = btn.getAttribute('data-user-id');
+            const row = document.getElementById(`children-row-${userId}`);
+            if (!row) {
+                console.warn('❌ ردیف مربوط به کاربر پیدا نشد:', userId);
+                return;
+            }
+
+            const container = row.querySelector('.children-list');
+            if (!container) {
+                console.warn('❌ کانتینر children-list پیدا نشد.');
+                return;
+            }
+
+            console.log('📌 کلیک روی مدیریت فرزندان', userId);
+
+            if (row.style.display === 'none' || !row.style.display) {
+                row.style.display = 'table-row';
+                container.innerHTML = '<p>در حال بارگذاری...</p>';
+
+                const fd = new FormData();
+                fd.append('action', 'neurame_get_user_children');
+                fd.append('nonce', getNonce);
+                fd.append('user_id', userId);
+
+                fetch(ajaxUrl, {
+                    method: 'POST',
+                    body: fd
+                })
+                    .then(res => res.json())
+                    .then(json => {
+                        console.log('📦 پاسخ دریافت شد:', json);
+                        if (json.success) {
+                            container.innerHTML = json.data.html;
+                        } else {
+                            container.innerHTML = '<p class="text-red-600">خطا در دریافت کودکان</p>';
+                            showToast(json.data?.message || 'خطا در دریافت کودکان.', 'error');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('❌ خطا در بارگذاری کودکان:', err);
+                        container.innerHTML = '<p class="text-red-600">خطا در ارتباط با سرور</p>';
+                    });
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        document.addEventListener('click', async function (e) {
+            // حذف کودک
+            if (e.target.classList.contains('delete-child')) {
+                const btn = e.target;
+                const index = btn.dataset.index;
+                const userId = btn.dataset.userId;
+
+                if (!confirm('آیا از حذف این کودک مطمئن هستید؟')) return;
+
+                const fd = new FormData();
+                fd.append('action', 'neurame_delete_child');
+                fd.append('nonce', nonceDeleteChild);
+                fd.append('user_id', userId);
+                fd.append('index', index);
+
+                const res = await fetch(ajaxUrl, {method: 'POST', body: fd});
+                const json = await res.json();
+
+                if (json.success) {
+                    showToast('✅ کودک حذف شد');
+                    btn.closest('.child-box').remove();
+                } else {
+                    showToast(json.message || 'خطا در حذف کودک', 'error');
+                }
+            }
+
+            // ذخیره کودک
+            if (e.target.classList.contains('update-child')) {
+                const btn = e.target;
+                const box = btn.closest('.child-box');
+                const index = btn.dataset.index;
+                const userId = btn.dataset.userId;
+                const name = box.querySelector('.child-name')?.value.trim();
+                const age = box.querySelector('.child-age')?.value.trim();
+                const interests = box.querySelector('.child-interests')?.value.trim();
+
+                if (!name || !age) {
+                    showToast('نام و سن الزامی هستند.', 'error');
+                    return;
+                }
+
+                const fd = new FormData();
+                fd.append('action', 'neurame_update_child');
+                fd.append('nonce', nonceUpdateChild);
+                fd.append('user_id', userId);
+                fd.append('index', index);
+                fd.append('name', name);
+                fd.append('age', age);
+                fd.append('interests', interests);
+
+                const res = await fetch(ajaxUrl, {method: 'POST', body: fd});
+                const json = await res.json();
+
+                if (json.success) {
+                    showToast('✅ کودک بروزرسانی شد');
+                } else {
+                    showToast(json.message || 'خطا در ذخیره کودک', 'error');
+                }
+            }
+        });
+
         async function loadTrainers() {
             const trainerSelect = document.getElementById('trainer_id');
             if (!trainerSelect) return;
@@ -152,17 +276,19 @@ waitForNeurameVars((vars) => {
 
         // لود کودکان هنگام انتخاب کاربر
         async function loadChildren(userId) {
+            console.log('🧠 ارسال درخواست دریافت کودک برای کاربر:', userId);
             const childSelect = document.getElementById('child_id');
             if (!childSelect) return;
+
+            const fd = new FormData();
+            fd.append('action', 'neurame_get_children');
+            fd.append('nonce', getNonce);
+            fd.append('user_id', userId);
+
 
             childSelect.innerHTML = '<option value="">در حال بارگذاری...</option>';
 
             try {
-                const fd = new FormData();
-                fd.append('action', 'neurame_get_children');
-                fd.append('nonce', getNonce);
-                fd.append('user_id', userId);
-
                 const resp = await fetch(ajaxUrl, {method: 'POST', body: fd});
                 const json = await resp.json();
 
@@ -294,7 +420,13 @@ waitForNeurameVars((vars) => {
 
         // لود اولیه مربیان
         loadTrainers();
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initForm);
+    } else {
+        initForm();
+    }
 });
 
 // ✅ Toast Helper Function

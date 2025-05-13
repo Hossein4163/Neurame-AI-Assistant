@@ -47,6 +47,14 @@ class NeurameAIAssistant
         add_action('wp_ajax_neurame_save_trainer_report', [$this, 'ajax_save_trainer_report']);
         add_action('wp_ajax_neurame_delete_trainer_report', [$this, 'ajax_delete_trainer_report']);
         add_action('wp_ajax_neurame_update_trainer_report', [$this, 'ajax_update_trainer_report']);
+        add_action('wp_ajax_neurame_load_trainers', [$this, 'ajax_load_trainers']);
+        add_action('wp_ajax_neurame_load_courses', [$this, 'ajax_load_courses']);
+        add_action('wp_ajax_neurame_get_user_children', [$this, 'ajax_get_user_children']);
+
+        add_action('woocommerce_account_trainer-reports_endpoint', [$this, 'render_trainer_report_endpoint']);
+
+        add_action('wp_ajax_neurame_update_child', [$this, 'ajax_update_child']);
+        add_action('wp_ajax_neurame_delete_child', [$this, 'ajax_delete_child']);
 
         // 🔥 اضافه شده برای بروزرسانی روند پیشرفت فرزند بعد از ثبت گزارش مربی
         add_action('save_post_trainer_report', [$this, 'update_child_progress_on_report'], 10, 2);
@@ -245,6 +253,38 @@ class NeurameAIAssistant
         return ob_get_clean();
     }
 
+    public function ajax_save_children()
+    {
+        check_ajax_referer('neurame_get_children', 'nonce'); // نانس امنیتی
+
+        $user_id = absint($_POST['user_id'] ?? 0);
+        $children = $_POST['children'] ?? [];
+
+        if (!$user_id || !is_array($children)) {
+            wp_send_json_error(['message' => 'اطلاعات نامعتبر ارسال شده است.']);
+        }
+
+        $cleaned_children = [];
+
+        foreach ($children as $child) {
+            $name = sanitize_text_field($child['name'] ?? '');
+            $age = absint($child['age'] ?? 0);
+            $interests = sanitize_text_field($child['interests'] ?? '');
+
+            if ($name && $age > 0) {
+                $cleaned_children[] = [
+                    'name' => $name,
+                    'age' => $age,
+                    'interests' => $interests,
+                ];
+            }
+        }
+
+        update_user_meta($user_id, 'neurame_children', $cleaned_children);
+
+        wp_send_json_success(['message' => 'کودکان با موفقیت ذخیره شدند.']);
+    }
+
     public function enqueue_scripts()
     {
         global $neurame_ai_shortcode_loaded;
@@ -257,33 +297,28 @@ class NeurameAIAssistant
             wp_enqueue_script('neurame-report-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-report.js', $script_dependencies, $assets_version, true);
             wp_enqueue_script('neurame-child-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-child.js', $script_dependencies, $assets_version, true);
 
-            $neural_vars = [
+            $vars = [
                 'ajax_url' => admin_url('admin-ajax.php'),
-                'nonce_actions' => [
-                    'load_buyers' => wp_create_nonce('neurame_load_buyers'),
-                    'get_children' => wp_create_nonce('neurame_get_children'),
-                    'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'),
-                    'ai_recommendation' => wp_create_nonce('neurame_ai_recommendation'),
-                    'get_reports' => wp_create_nonce('neurame_get_reports'),
-                    'fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info')
-                ],
+                'nonce_load_buyers' => wp_create_nonce('neurame_load_buyers'),
+                'nonce_get_children' => wp_create_nonce('neurame_get_children'),
+                'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'),
+                'ai_nonce' => wp_create_nonce('neurame_ai_recommendation'),
+                'nonce_get_reports' => wp_create_nonce('neurame_get_reports'),
+                'nonce_save_parent_info' => wp_create_nonce('neurame_save_parent_info'),
+                'nonce_fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info'),
+                'nonce_load_trainers' => wp_create_nonce('neurame_load_trainers'),
+                'nonce_load_courses' => wp_create_nonce('neurame_load_courses'),
                 'user_id' => get_current_user_id(),
                 'is_admin' => current_user_can('manage_options')
             ];
 
-            wp_localize_script('neurame-report-scripts', 'neurame_vars', $neural_vars);
-            wp_localize_script('neurame-child-scripts', 'neurame_vars', $neural_vars);
-
-            wp_add_inline_script('neurame-report-scripts', 'console.log("Neurame Vars Loaded:", ' . wp_json_encode($neural_vars) . ');');
+            wp_localize_script('neurame-report-scripts', 'neurame_vars', $vars);
+            wp_localize_script('neurame-child-scripts', 'neurame_vars', $vars);
         }
     }
 
     public function admin_enqueue_scripts($hook)
     {
-        if (strpos($hook, 'neurame-trainer-reports') === false) {
-            return;
-        }
-
         $assets_version = '1.2.0';
         $script_dependencies = ['jquery'];
 
@@ -291,24 +326,25 @@ class NeurameAIAssistant
         wp_enqueue_script('neurame-report-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-report.js', $script_dependencies, $assets_version, true);
         wp_enqueue_script('neurame-child-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-child.js', $script_dependencies, $assets_version, true);
 
-        $admin_vars = [
+        $vars = [
             'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce_actions' => [
-                'load_buyers' => wp_create_nonce('neurame_load_buyers'),
-                'get_children' => wp_create_nonce('neurame_get_children'),
-                'trainer_report' => wp_create_nonce('neurame_trainer_report'),
-                'ai_recommendation' => wp_create_nonce('neurame_ai_recommendation'),
-                'get_reports' => wp_create_nonce('neurame_get_reports'),
-                'save_parent_info' => wp_create_nonce('neurame_save_parent_info')
-            ],
+            'nonce_load_buyers' => wp_create_nonce('neurame_load_buyers'),
+            'nonce_get_children' => wp_create_nonce('neurame_get_children'),
+            'nonce_delete_child' => wp_create_nonce('neurame_delete_child'),
+            'nonce_update_child' => wp_create_nonce('neurame_update_child'),
+            'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'),
+            'ai_nonce' => wp_create_nonce('neurame_ai_recommendation'),
+            'nonce_get_reports' => wp_create_nonce('neurame_get_reports'),
+            'nonce_save_parent_info' => wp_create_nonce('neurame_save_parent_info'),
+            'nonce_fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info'),
+            'nonce_load_trainers' => wp_create_nonce('neurame_load_trainers'),
+            'nonce_load_courses' => wp_create_nonce('neurame_load_courses'),
             'user_id' => get_current_user_id(),
             'is_admin' => current_user_can('manage_options')
         ];
 
-        wp_localize_script('neurame-report-scripts', 'neurame_admin_vars', $admin_vars);
-        wp_localize_script('neurame-child-scripts', 'neurame_admin_vars', $admin_vars);
-
-        wp_add_inline_script('neurame-report-scripts', 'console.log("Neurame Vars Loaded:", ' . wp_json_encode($admin_vars) . ');');
+        wp_localize_script('neurame-report-scripts', 'neurame_vars', $vars);
+        wp_localize_script('neurame-child-scripts', 'neurame_vars', $vars);
     }
 
     public function register_settings()
@@ -466,6 +502,50 @@ class NeurameAIAssistant
         <?php
     }
 
+    public function ajax_load_trainers()
+    {
+        check_ajax_referer('neurame_load_trainers', 'nonce');
+
+        $trainers = get_users([
+            'role' => 'trainer',
+            'fields' => ['ID', 'display_name']
+        ]);
+
+        $data = array_map(function ($trainer) {
+            return [
+                'id' => $trainer->ID,
+                'name' => $trainer->display_name
+            ];
+        }, $trainers);
+
+        wp_send_json_success($data);
+    }
+
+    public function ajax_load_courses()
+    {
+        check_ajax_referer('neurame_load_courses', 'nonce');
+
+        $trainer_id = absint($_POST['trainer_id'] ?? 0);
+        if (!$trainer_id) {
+            wp_send_json_error(['message' => 'شناسه مربی معتبر نیست.']);
+        }
+
+        // اینجا باید فقط دوره‌هایی لود شن که به این مربی مربوط باشن (در صورت نیاز)
+        // ولی فعلاً همه دوره‌ها رو می‌فرستیم
+
+        $courses = wc_get_products(['limit' => -1]);
+        $data = [];
+
+        foreach ($courses as $course) {
+            $data[] = [
+                'id' => $course->get_id(),
+                'title' => $course->get_name()
+            ];
+        }
+
+        wp_send_json_success($data);
+    }
+
     public function save_course_metabox($post_id)
     {
         // چک نانس برای امنیت
@@ -501,6 +581,15 @@ class NeurameAIAssistant
                 $new_items['neurame-dashboard'] = esc_html__('داشبورد هوشمند والدین', 'neurame-ai-assistant');
             }
         }
+
+        $user = wp_get_current_user();
+        $roles = (array)$user->roles;
+
+        // اضافه کردن منوی گزارشات فقط برای مربی
+        if (in_array('trainer', $roles, true)) {
+            $items['trainer-reports'] = esc_html__('گزارشات', 'neurame-ai-assistant');
+        }
+
         return $new_items;
     }
 
@@ -772,7 +861,9 @@ class NeurameAIAssistant
             return $this->send_json_response(false, __('هیچ دوره‌ای در سیستم یافت نشد.', 'neurame-ai-assistant'));
         }
 
-        $course_list_text = implode("\n", array_map(fn($course) => "- ID: {$course['course_id']}, نام: {$course['course_name']}, URL: {$course['course_url']}", $course_list));
+        $course_list_text = implode("\n", array_map(function ($course) {
+            return "- ID: {$course['course_id']}, نام: {$course['course_name']}, URL: {$course['course_url']}";
+        }, $course_list));
 
         $prompt = sprintf(
             "برای کودکی با سن %d سال، علاقه‌مندی‌های '%s' و اهداف والدین '%s'، دوره‌های آموزشی مناسب را پیشنهاد دهید. " .
@@ -1043,8 +1134,11 @@ class NeurameAIAssistant
         if ($added === true /*  */) {
             return;
         }
+
         // آدرس: /my-account/neurame-dashboard/
         add_rewrite_endpoint('neurame-dashboard', EP_PAGES);
+        add_rewrite_endpoint('trainer-reports', EP_PAGES);
+
         $added = true;
     }
 
@@ -1136,6 +1230,19 @@ class NeurameAIAssistant
         echo '</div>';
         echo '</div>';
 
+        echo '</div>';
+    }
+
+    public function render_trainer_report_endpoint()
+    {
+        if (!is_user_logged_in() || !current_user_can('edit_posts')) {
+            echo '<p>' . esc_html__('دسترسی ندارید.', 'neurame-ai-assistant') . '</p>';
+            return;
+        }
+
+        // استفاده از قالب trainer-reports-template.php
+        echo '<div class="neurame-trainer-dashboard">';
+        include NEURAMEAI_PLUGIN_DIR . 'partials/trainer-reports-template.php';
         echo '</div>';
     }
 
@@ -1296,14 +1403,47 @@ class NeurameAIAssistant
             wp_die(esc_html__('دسترسی ندارید.', 'neurame-ai-assistant'));
         }
 
+        // گرفتن لیست کاربران دارای فرزند
+        $users = get_users();
+        $users_with_children = array_filter($users, function ($user) {
+            $children = get_user_meta($user->ID, 'neurame_children', true);
+            return is_array($children) && !empty($children);
+        });
+
         echo '<div class="wrap">';
-        echo '<h1>' . esc_html__('مدیریت کودکان', 'neurame-ai-assistant') . '</h1>';
-        echo '<form method="post" action="">';
-        wp_nonce_field('neurame_children_form', 'neurame_children_nonce');
-        $this->load_view('children-form.php');
-        echo '<button type="submit" name="submit_children" class="btn-save mt-4">' . esc_html__('ذخیره تغییرات', 'neurame-ai-assistant') . '</button>';
-        echo '</form>';
+        echo '<h1>' . esc_html__('مدیریت کودکان کاربران', 'neurame-ai-assistant') . '</h1>';
+
+        if (empty($users_with_children)) {
+            echo '<p class="notice notice-warning">' . esc_html__('هیچ کاربری با فرزند ثبت‌شده یافت نشد.', 'neurame-ai-assistant') . '</p>';
+            echo '</div>';
+            return;
+        }
+
+        echo '<table class="widefat striped fixed">';
+        echo '<thead><tr>';
+        echo '<th>نام کاربر</th>';
+        echo '<th>ایمیل</th>';
+        echo '<th>عملیات</th>';
+        echo '</tr></thead>';
+        echo '<tbody>';
+
+        foreach ($users_with_children as $user) {
+            echo '<tr>';
+            echo '<td>' . esc_html($user->display_name) . '</td>';
+            echo '<td>' . esc_html($user->user_email) . '</td>';
+            echo '<td><button class="button manage-children-btn" data-user-id="' . esc_attr($user->ID) . '">مدیریت فرزندان</button></td>';
+            echo '</tr>';
+
+            echo '<tr id="children-row-' . esc_attr($user->ID) . '" style="display: none;">';
+            echo '<td colspan="3"><div class="children-list" data-user-id="' . esc_attr($user->ID) . '"></div></td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody>';
+        echo '</table>';
         echo '</div>';
+        echo "<script>console.log('✅ HTML مدیریت فرزندان رندر شد');</script>";
+
     }
 
     public function register_admin_menu()
@@ -1530,7 +1670,9 @@ class NeurameAIAssistant
 
             // فقط گزارش‌های متعلق به مربی فعلی، مگر اینکه ادمینه
             if (!$is_admin) {
-                $reports = array_filter($reports, fn($r) => $r['trainer_id'] === $current_user_id);
+                $reports = array_filter($reports, function ($r) use ($current_user_id) {
+                    return $r['trainer_id'] === $current_user_id;
+                });
             }
 
             if (!empty($reports)) {
@@ -2151,4 +2293,81 @@ EOD;
         return __('ناشناس', 'neurame-ai-assistant');
     }
 
+    public function ajax_get_user_children()
+    {
+        check_ajax_referer('neurame_get_children', 'nonce');
+
+        $user_id = absint($_POST['user_id'] ?? 0);
+        $children = get_user_meta($user_id, 'neurame_children', true);
+        $children = is_array($children) ? $children : [];
+
+        ob_start();
+        foreach ($children as $index => $child) {
+            ?>
+            <div class="child-box" data-child-index="<?php echo $index; ?>">
+                <label>نام: <input type="text" class="child-name"
+                                   value="<?php echo esc_attr($child['name']); ?>"></label>
+                <label>سن: <input type="number" class="child-age"
+                                  value="<?php echo esc_attr($child['age']); ?>"></label>
+                <label>علاقه‌مندی‌ها: <input type="text" class="child-interests"
+                                             value="<?php echo esc_attr($child['interests']); ?>"></label>
+                <button class="button button-primary update-child" data-index="<?php echo $index; ?>"
+                        data-user-id="<?php echo $user_id; ?>">💾 ذخیره
+                </button>
+                <button class="button button-secondary delete-child" data-index="<?php echo $index; ?>"
+                        data-user-id="<?php echo $user_id; ?>">🗑 حذف
+                </button>
+            </div>
+            <hr>
+            <?php
+        }
+
+        $html = ob_get_clean();
+        wp_send_json_success(['html' => $html]);
+    }
+
+    public function ajax_update_child()
+    {
+        check_ajax_referer('neurame_update_child', 'nonce'); // نانس صحیح
+        $user_id = absint($_POST['user_id'] ?? 0);
+        $index = absint($_POST['index'] ?? -1);
+        $name = sanitize_text_field($_POST['name'] ?? '');
+        $age = absint($_POST['age'] ?? 0);
+        $interests = sanitize_text_field($_POST['interests'] ?? '');
+
+        if (!$user_id || $index < 0 || !$name || !$age) {
+            wp_send_json_error(['message' => 'اطلاعات ناقص است.']);
+        }
+
+        $children = get_user_meta($user_id, 'neurame_children', true);
+        if (!is_array($children) || !isset($children[$index])) {
+            wp_send_json_error(['message' => 'کودک مورد نظر یافت نشد.']);
+        }
+
+        $children[$index] = compact('name', 'age', 'interests');
+        update_user_meta($user_id, 'neurame_children', $children);
+
+        wp_send_json_success(['message' => 'کودک با موفقیت بروزرسانی شد.']);
+    }
+
+    public function ajax_delete_child()
+    {
+        check_ajax_referer('neurame_delete_child', 'nonce'); // نانس صحیح
+        $user_id = absint($_POST['user_id'] ?? 0);
+        $index = absint($_POST['index'] ?? -1);
+
+        if (!$user_id || $index < 0) {
+            wp_send_json_error(['message' => 'شناسه نامعتبر است.']);
+        }
+
+        $children = get_user_meta($user_id, 'neurame_children', true);
+        if (!is_array($children) || !isset($children[$index])) {
+            wp_send_json_error(['message' => 'کودک یافت نشد.']);
+        }
+
+        unset($children[$index]);
+        update_user_meta($user_id, 'neurame_children', array_values($children));
+
+        wp_send_json_success(['message' => 'کودک حذف شد.']);
+    }
 }

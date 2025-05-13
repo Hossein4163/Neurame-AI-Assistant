@@ -32,23 +32,28 @@ if ($edit_id !== null) {
             <input type="hidden" name="report_id" value="<?php echo esc_attr($edit_id); ?>">
         <?php endif; ?>
 
+        <?php
+        $is_admin = current_user_can('manage_options');
+        $current_user_id = get_current_user_id();
+        ?>
+
         <!-- مربی -->
-        <div class="form-group">
-            <label for="trainer_id" class="block text-lg font-medium text-gray-800 mb-2">انتخاب مربی</label>
-            <select name="trainer_id" id="trainer_id"
-                    class="block w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-blue-300" required>
-                <option value="">یک مربی انتخاب کنید</option>
-                <?php
-                $trainers = get_users(['role' => 'trainer']);
-                foreach ($trainers as $trainer) :
+        <?php if ($is_admin): ?>
+            <div class="form-group">
+                <label for="trainer_id">انتخاب مربی</label>
+                <select name="trainer_id" id="trainer_id" required>
+                    <option value="">یک مربی انتخاب کنید</option>
+                    <?php
+                    $trainers = get_users(['role' => 'trainer']);
+                    foreach ($trainers as $trainer) {
+                        echo '<option value="' . esc_attr($trainer->ID) . '">' . esc_html($trainer->display_name) . '</option>';
+                    }
                     ?>
-                    <option
-                        value="<?php echo esc_attr($trainer->ID); ?>" <?php selected($edit_data['trainer_id'] ?? '', $trainer->ID); ?>>
-                        <?php echo esc_html($trainer->display_name); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </div>
+                </select>
+            </div>
+        <?php else: ?>
+            <input type="hidden" name="trainer_id" id="trainer_id" value="<?php echo esc_attr($current_user_id); ?>">
+        <?php endif; ?>
 
         <!-- دوره -->
         <div class="form-group">
@@ -71,17 +76,19 @@ if ($edit_id !== null) {
         <!-- کاربر -->
         <div class="form-group">
             <label for="user_id" class="block text-lg font-medium text-gray-800 mb-2">کاربر خریدار</label>
-            <input type="number" name="user_id" id="user_id"
-                   value="<?php echo esc_attr($edit_data['user_id'] ?? ''); ?>"
-                   class="block w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-blue-300" required>
+            <select name="user_id" id="user_id"
+                    class="block w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-blue-300" required>
+                <option value="">ابتدا یک دوره انتخاب کنید</option>
+            </select>
         </div>
 
         <!-- کودک -->
         <div class="form-group">
             <label for="child_id" class="block text-lg font-medium text-gray-800 mb-2">کودک</label>
-            <input type="text" name="child_id" id="child_id"
-                   value="<?php echo esc_attr($edit_data['child_id'] ?? ''); ?>"
-                   class="block w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-blue-300">
+            <select name="child_id" id="child_id"
+                    class="block w-full p-3 border border-gray-300 rounded-lg focus:ring focus:ring-blue-300">
+                <option value="">ابتدا یک کاربر انتخاب کنید</option>
+            </select>
         </div>
 
         <!-- محتوا -->
