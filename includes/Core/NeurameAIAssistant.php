@@ -50,6 +50,9 @@ class NeurameAIAssistant
         add_action('wp_ajax_neurame_load_trainers', [$this, 'ajax_load_trainers']);
         add_action('wp_ajax_neurame_load_courses', [$this, 'ajax_load_courses']);
         add_action('wp_ajax_neurame_get_user_children', [$this, 'ajax_get_user_children']);
+        add_action('wp_ajax_nopriv_neurame_delete_trainer_report', '__return_false'); // فقط برای امنیت
+        add_action('wp_ajax_nopriv_neurame_update_trainer_report', '__return_false'); // فقط برای امنیت
+
 
         add_action('woocommerce_account_trainer-reports_endpoint', [$this, 'render_trainer_report_endpoint']);
 
@@ -255,13 +258,19 @@ class NeurameAIAssistant
 
     public function ajax_save_children()
     {
-        check_ajax_referer('neurame_get_children', 'nonce'); // نانس امنیتی
+        check_ajax_referer('neurame_get_children', 'nonce');
 
-        $user_id = absint($_POST['user_id'] ?? 0);
-        $children = $_POST['children'] ?? [];
+        $user_id = absint($_POST['user_id'] ?? get_current_user_id());
+        if (!$user_id) {
+            wp_send_json_error(['message' => 'شناسه کاربر معتبر نیست.']);
+        }
 
-        if (!$user_id || !is_array($children)) {
-            wp_send_json_error(['message' => 'اطلاعات نامعتبر ارسال شده است.']);
+        // کودکان به صورت JSON ارسال می‌شن
+        $children_raw = $_POST['children'] ?? '[]';
+        $children = json_decode(stripslashes($children_raw), true);
+
+        if (!is_array($children)) {
+            wp_send_json_error(['message' => 'داده‌های کودک به درستی ارسال نشده‌اند.']);
         }
 
         $cleaned_children = [];
@@ -270,12 +279,14 @@ class NeurameAIAssistant
             $name = sanitize_text_field($child['name'] ?? '');
             $age = absint($child['age'] ?? 0);
             $interests = sanitize_text_field($child['interests'] ?? '');
+            $goals = sanitize_textarea_field($child['goals'] ?? '');
 
             if ($name && $age > 0) {
                 $cleaned_children[] = [
                     'name' => $name,
                     'age' => $age,
                     'interests' => $interests,
+                    'goals' => $goals,
                 ];
             }
         }
@@ -319,10 +330,14 @@ class NeurameAIAssistant
 
     public function admin_enqueue_scripts($hook)
     {
+        if (strpos($hook, 'neurame-trainer-reports') === false) {
+            return;
+        }
+
         $assets_version = '1.2.0';
         $script_dependencies = ['jquery'];
 
-        wp_enqueue_style('neurame-admin-styles', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-styles.min.css', [], $assets_version);
+        wp_enqueue_style('neurame-admin-styles', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-styles.css', [], $assets_version);
         wp_enqueue_script('neurame-report-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-report.js', $script_dependencies, $assets_version, true);
         wp_enqueue_script('neurame-child-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-child.js', $script_dependencies, $assets_version, true);
 
@@ -577,17 +592,19 @@ class NeurameAIAssistant
         $new_items = [];
         foreach ($items as $key => $label) {
             $new_items[$key] = $label;
+
+            // بعد از داشبورد، منوهای سفارشی اضافه میشن
             if ($key === 'dashboard') {
                 $new_items['neurame-dashboard'] = esc_html__('داشبورد هوشمند والدین', 'neurame-ai-assistant');
+
+                $user = wp_get_current_user();
+                $roles = (array)$user->roles;
+
+                // اضافه کردن منوی گزارشات فقط برای مربی یا ادمین
+                if (in_array('trainer', $roles, true) || current_user_can('manage_options')) {
+                    $new_items['trainer-reports'] = esc_html__('گزارشات', 'neurame-ai-assistant');
+                }
             }
-        }
-
-        $user = wp_get_current_user();
-        $roles = (array)$user->roles;
-
-        // اضافه کردن منوی گزارشات فقط برای مربی
-        if (in_array('trainer', $roles, true)) {
-            $items['trainer-reports'] = esc_html__('گزارشات', 'neurame-ai-assistant');
         }
 
         return $new_items;
@@ -954,7 +971,7 @@ class NeurameAIAssistant
                         <h4 class="text-lg font-medium text-gray-900 mb-2"><?php echo esc_html($course['course_name']); ?></h4>
                         <?php if (!empty($course['course_url'])) : ?>
                             <a href="<?php echo esc_url($course['course_url']); ?>"
-                               class="mt-2 inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                               class="mt-2 inline-block bg-white text-red-600 px-4 py-2 rounded-lg hover:bg-red-700 hover:text-white border border-red-600 transition-colors">
                                 <?php esc_html_e('مشاهده دوره', 'neurame-ai-assistant'); ?>
                             </a>
                             <?php Logger::info('✅ render_recommended_courses: Rendered course with URL - ID=' . $course['course_id'] . ', URL=' . $course['course_url']); ?>
@@ -1235,7 +1252,15 @@ class NeurameAIAssistant
 
     public function render_trainer_report_endpoint()
     {
-        if (!is_user_logged_in() || !current_user_can('edit_posts')) {
+        if (!is_user_logged_in()) {
+            echo '<p>' . esc_html__('دسترسی ندارید.', 'neurame-ai-assistant') . '</p>';
+            return;
+        }
+
+        $user = wp_get_current_user();
+        $roles = (array)$user->roles;
+
+        if (!in_array('trainer', $roles, true) && !current_user_can('edit_posts')) {
             echo '<p>' . esc_html__('دسترسی ندارید.', 'neurame-ai-assistant') . '</p>';
             return;
         }
@@ -1658,7 +1683,6 @@ class NeurameAIAssistant
 
             <?php
             $reports = $this->get_trainer_reports();
-
             if (!is_array($reports)) {
                 $reports = [];
             }
@@ -1668,10 +1692,10 @@ class NeurameAIAssistant
                 return isset($r['trainer_id'], $r['course_id'], $r['user_id'], $r['content']);
             });
 
-            // فقط گزارش‌های متعلق به مربی فعلی، مگر اینکه ادمینه
+            // 🔒 فقط گزارش‌های همین مربی (اگر ادمین نیست)
             if (!$is_admin) {
                 $reports = array_filter($reports, function ($r) use ($current_user_id) {
-                    return $r['trainer_id'] === $current_user_id;
+                    return intval($r['trainer_id']) === $current_user_id;
                 });
             }
 
@@ -2250,8 +2274,27 @@ EOD;
                 $report['content'] = $new_content;
                 $report['timestamp'] = current_time('mysql');
 
-                // بازنویسی با AI
-                $ai_response = $this->call_ai_api("بازنویسی کن: \n" . $new_content, get_option('neurame_settings'));
+                // ✅ گرفتن نام دوره برای پرامپت AI
+                $course = wc_get_product($report['course_id']);
+                $course_name = $course ? $course->get_name() : 'دوره ناشناس';
+
+                $prompt = "شما یک مربی آموزشی حرفه‌ای هستید. لطفاً محتوای زیر را به‌گونه‌ای بازنویسی کنید که قابل استفاده در گزارش رسمی آموزشی باشد.\n\n" .
+                    "عنوان دوره: {$course_name}\n";
+
+                if (!empty($report['child_id'])) {
+                    list($user_id, $child_index) = explode('_', $report['child_id']);
+                    $children = get_user_meta($user_id, 'neurame_children', true);
+                    if (isset($children[$child_index])) {
+                        $child = $children[$child_index];
+                        $prompt .= "نام کودک: {$child['name']}\n";
+                        $prompt .= "سن کودک: {$child['age']} سال\n";
+                    }
+                }
+
+                $prompt .= "محتوای اصلی گزارش مربی:\n«{$new_content}»\n\n";
+                $prompt .= "حالا لطفاً این گزارش را به‌صورت حرفه‌ای، مختصر و روان بازنویسی کن. از کلی‌گویی یا جملات مبهم مثل «عملکرد عالی بود» پرهیز کن. فقط نتیجه‌گیری آموزشی و نقاط قابل توجه را با لحنی رسمی بنویس. متن خروجی باید فقط بازنویسی باشد، بدون هیچ پیشوند یا توضیح اضافی.";
+
+                $ai_response = $this->call_ai_api($prompt, get_option('neurame_settings'));
                 $report['ai_content'] = $ai_response['success'] ? $ai_response['data'] : $new_content;
 
                 update_option('neurame_trainer_reports', $reports);

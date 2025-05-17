@@ -1,5 +1,8 @@
 <?php
-if (!current_user_can('edit_posts')) {
+$user = wp_get_current_user();
+$roles = (array)$user->roles;
+
+if (!current_user_can('edit_posts') && !in_array('trainer', $roles, true)) {
     wp_die(esc_html__('دسترسی ندارید.', 'neurame-ai-assistant'));
 }
 

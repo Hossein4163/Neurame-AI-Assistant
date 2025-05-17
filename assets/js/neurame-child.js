@@ -422,10 +422,83 @@ waitForNeurameVars((vars) => {
         loadTrainers();
     }
 
+    function initChildrenManagementForm() {
+        const addBtn = document.getElementById('add-child');
+        const saveBtn = document.getElementById('save-children');
+        const childrenList = document.getElementById('children-list');
+
+        if (!addBtn || !saveBtn || !childrenList) return;
+
+        // افزودن کودک جدید
+        addBtn.addEventListener('click', () => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
+                <label>نام:</label><input type="text" name="name[]" />
+                <label>سن:</label><input type="number" name="age[]" />
+                <label>علاقه‌مندی:</label><input type="text" name="interests[]" />
+                <label>هدف والد:</label><textarea name="goals[]"></textarea>
+                <button type="button" class="remove-child btn-save">حذف</button>
+            `;
+            childrenList.appendChild(card);
+        });
+
+        // حذف کودک
+        document.addEventListener('click', function (e) {
+            if (e.target.classList.contains('remove-child')) {
+                e.target.closest('.card')?.remove();
+            }
+        });
+
+        // ذخیره کودکان
+        saveBtn.addEventListener('click', () => {
+            const fd = new FormData();
+            fd.append('action', 'neurame_save_children');
+            fd.append('nonce', neurame_vars.nonce_get_children);
+
+            const children = [];
+
+            childrenList.querySelectorAll('.card').forEach(card => {
+                const name = card.querySelector('input[name="name[]"]')?.value.trim();
+                const age = card.querySelector('input[name="age[]"]')?.value.trim();
+                const interests = card.querySelector('input[name="interests[]"]')?.value.trim();
+                const goals = card.querySelector('textarea[name="goals[]"]')?.value.trim();
+
+                if (name && age) {
+                    children.push({name, age, interests, goals});
+                }
+            });
+
+            fd.append('children', JSON.stringify(children));
+
+            fetch(neurame_vars.ajax_url, {
+                method: 'POST',
+                body: fd
+            })
+                .then(res => res.json())
+                .then(json => {
+                    if (json.success) {
+                        showToast('✅ اطلاعات ذخیره شد.', 'success');
+                    } else {
+                        showToast(json.data?.message || 'خطا در ذخیره اطلاعات', 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error('❌ خطا در ذخیره:', err);
+                    showToast('ارتباط با سرور قطع شد.', 'error');
+                });
+        });
+    }
+
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initForm);
+        document.addEventListener('DOMContentLoaded', () => {
+            initForm();                // فرم گزارش‌ها
+            initChildrenManagementForm(); // فرم مدیریت کودکان
+        });
     } else {
         initForm();
+        initChildrenManagementForm();
     }
 });
 

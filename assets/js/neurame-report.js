@@ -57,6 +57,7 @@ waitForNeurameVars((vars) => {
     const aiNonce = vars.ai_nonce || '';
     const getNonce = vars.nonce_get_children || '';
     const nonceGetReports = vars.nonce_get_reports || '';
+    const nonceTrainerReport = vars.nonce_trainer_report || '';
     const nonceSaveParentInfo = vars.nonce_save_parent_info || '';
     const nonceFetchParentInfo = vars.nonce_fetch_parent_info || '';
     const userId = vars.user_id || '';
@@ -353,6 +354,102 @@ waitForNeurameVars((vars) => {
             });
         }
 
+        // 🚀 حذف و ویرایش گزارش‌ها
+        document.addEventListener('click', async function (e) {
+            if (e.target.classList.contains('neurame-delete-report')) {
+                const reportId = e.target.getAttribute('data-report-id');
+                console.log(reportId);
+                if (!reportId) return;
+                console.log(reportId);
+                const confirmed = confirm('آیا از حذف این گزارش مطمئن هستید؟');
+                if (!confirmed) return;
+                console.log(confirmed);
+
+                const fd = new FormData();
+                fd.append('action', 'neurame_delete_trainer_report');
+                fd.append('nonce', nonceTrainerReport);
+                fd.append('report_id', reportId);
+
+                try {
+                    const res = await fetch(neurame_vars.ajax_url, {method: 'POST', body: fd});
+                    const json = await res.json();
+                    if (json.success) {
+                        showToast('گزارش با موفقیت حذف شد.');
+                        btn.closest('tr').remove(); // برای حذف ردیف گزارش
+                    } else {
+                        showToast(json.message || 'خطا در حذف گزارش.', 'error');
+                    }
+                } catch (err) {
+                    console.error('Delete error:', err);
+                    showToast('خطای ارتباط با سرور.', 'error');
+                }
+            }
+        });
+
+        // فرم ویرایش اگر موجود نبود، بساز
+        if (!document.getElementById('neurame-edit-modal')) {
+            const modal = document.createElement('div');
+            modal.id = 'neurame-edit-modal';
+            modal.style.display = 'none';
+            modal.innerHTML = `
+                <div style="position:fixed; top:0; left:0; width:100%; height:100%; background:#00000088; z-index:9999; display:flex; align-items:center; justify-content:center;">
+                    <div style="background:#fff; padding:20px; max-width:500px; width:90%; border-radius:8px;">
+                        <h3>✏️ ویرایش گزارش</h3>
+                        <textarea id="neurame-edit-content" rows="5" class="w-full border p-2 my-3"></textarea>
+                        <button id="neurame-edit-save" class="bg-green-600 text-white px-4 py-1 rounded">ذخیره</button>
+                        <button id="neurame-edit-cancel" class="text-gray-600 ml-3">انصراف</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        let currentEditingId = '';
+
+        document.addEventListener('click', function (e) {
+            if (e.target.classList.contains('neurame-edit-report')) {
+                currentEditingId = e.target.getAttribute('data-report-id');
+                const row = e.target.closest('tr');
+                const oldContent = row.querySelectorAll('td')[4]?.innerText || '';
+                document.getElementById('neurame-edit-content').value = oldContent;
+                document.getElementById('neurame-edit-modal').style.display = 'block';
+            }
+        });
+
+        document.getElementById('neurame-edit-cancel').addEventListener('click', () => {
+            document.getElementById('neurame-edit-modal').style.display = 'none';
+        });
+
+        document.getElementById('neurame-edit-save').addEventListener('click', async () => {
+            const newContent = document.getElementById('neurame-edit-content').value.trim();
+            if (!newContent || !currentEditingId) {
+                showToast('محتوای جدید وارد نشده است.', 'error');
+                return;
+            }
+
+            const fd = new FormData();
+            fd.append('action', 'neurame_update_trainer_report');
+            fd.append('nonce', neurame_vars.nonce_trainer_report);
+            fd.append('report_id', currentEditingId);
+            fd.append('report_content', newContent);
+
+            try {
+                const res = await fetch(neurame_vars.ajax_url, {method: 'POST', body: fd});
+                const json = await res.json();
+                if (json.success) {
+                    showToast('گزارش با موفقیت ویرایش شد.');
+                    location.reload();
+                } else {
+                    showToast(json.message || 'خطا در ویرایش گزارش.', 'error');
+                }
+            } catch (err) {
+                console.error('Edit error:', err);
+                showToast('خطا در ارتباط با سرور.', 'error');
+            }
+
+            document.getElementById('neurame-edit-modal').style.display = 'none';
+        });
+
         // دریافت اطلاعات والدین
         async function fetchParentInfo(userId) {
             const fd = new FormData();
@@ -375,6 +472,34 @@ waitForNeurameVars((vars) => {
                 showToast('خطا در ارتباط با سرور.', 'error');
                 return `<p class="text-red-600">خطا در دریافت اطلاعات والدین: ${err.message}</p>`;
             }
+        }
+
+        // ✅ Chart.js Setup for Progress Report
+        function renderSkillChart(canvasId, labels, values) {
+            if (typeof Chart === 'undefined') {
+                console.warn("Chart.js not loaded");
+                return;
+            }
+
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'سطح مهارت',
+                        data: values,
+                        backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {beginAtZero: true, max: 100}
+                    }
+                }
+            });
         }
 
         // مدیریت انتخاب نوع گزارش و محتوای پویا
@@ -427,126 +552,4 @@ waitForNeurameVars((vars) => {
             });
         }
     });
-});
-
-// ✅ Chart.js Setup for Progress Report
-function renderSkillChart(canvasId, labels, values) {
-    if (typeof Chart === 'undefined') {
-        console.warn("Chart.js not loaded");
-        return;
-    }
-
-    const ctx = document.getElementById(canvasId).getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'سطح مهارت',
-                data: values,
-                backgroundColor: 'rgba(59, 130, 246, 0.6)',
-                borderColor: 'rgba(59, 130, 246, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                y: {beginAtZero: true, max: 100}
-            }
-        }
-    });
-}
-
-// 🚀 حذف و ویرایش گزارش‌ها
-document.addEventListener('click', async function (e) {
-    if (e.target.classList.contains('neurame-delete-report')) {
-        const reportId = e.target.getAttribute('data-report-id');
-        if (!reportId) return;
-
-        const confirmed = confirm('آیا از حذف این گزارش مطمئن هستید؟');
-        if (!confirmed) return;
-
-        const fd = new FormData();
-        fd.append('action', 'neurame_delete_trainer_report');
-        fd.append('nonce', neurame_vars.nonce_trainer_report);
-        fd.append('report_id', reportId);
-
-        try {
-            const res = await fetch(neurame_vars.ajax_url, {method: 'POST', body: fd});
-            const json = await res.json();
-            if (json.success) {
-                showToast('گزارش با موفقیت حذف شد.');
-                location.reload();
-            } else {
-                showToast(json.message || 'خطا در حذف گزارش.', 'error');
-            }
-        } catch (err) {
-            console.error('Delete error:', err);
-            showToast('خطای ارتباط با سرور.', 'error');
-        }
-    }
-});
-
-// فرم ویرایش اگر موجود نبود، بساز
-if (!document.getElementById('neurame-edit-modal')) {
-    const modal = document.createElement('div');
-    modal.id = 'neurame-edit-modal';
-    modal.style.display = 'none';
-    modal.innerHTML = `
-        <div style="position:fixed; top:0; left:0; width:100%; height:100%; background:#00000088; z-index:9999; display:flex; align-items:center; justify-content:center;">
-            <div style="background:#fff; padding:20px; max-width:500px; width:90%; border-radius:8px;">
-                <h3>✏️ ویرایش گزارش</h3>
-                <textarea id="neurame-edit-content" rows="5" class="w-full border p-2 my-3"></textarea>
-                <button id="neurame-edit-save" class="bg-green-600 text-white px-4 py-1 rounded">ذخیره</button>
-                <button id="neurame-edit-cancel" class="text-gray-600 ml-3">انصراف</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-let currentEditingId = '';
-
-document.addEventListener('click', function (e) {
-    if (e.target.classList.contains('neurame-edit-report')) {
-        currentEditingId = e.target.getAttribute('data-report-id');
-        const row = e.target.closest('tr');
-        const oldContent = row.querySelectorAll('td')[4]?.innerText || '';
-        document.getElementById('neurame-edit-content').value = oldContent;
-        document.getElementById('neurame-edit-modal').style.display = 'block';
-    }
-});
-
-document.getElementById('neurame-edit-cancel').addEventListener('click', () => {
-    document.getElementById('neurame-edit-modal').style.display = 'none';
-});
-
-document.getElementById('neurame-edit-save').addEventListener('click', async () => {
-    const newContent = document.getElementById('neurame-edit-content').value.trim();
-    if (!newContent || !currentEditingId) {
-        showToast('محتوای جدید وارد نشده است.', 'error');
-        return;
-    }
-
-    const fd = new FormData();
-    fd.append('action', 'neurame_update_trainer_report');
-    fd.append('nonce', neurame_vars.nonce_trainer_report);
-    fd.append('report_id', currentEditingId);
-    fd.append('report_content', newContent);
-
-    try {
-        const res = await fetch(neurame_vars.ajax_url, {method: 'POST', body: fd});
-        const json = await res.json();
-        if (json.success) {
-            showToast('گزارش با موفقیت ویرایش شد.');
-            location.reload();
-        } else {
-            showToast(json.message || 'خطا در ویرایش گزارش.', 'error');
-        }
-    } catch (err) {
-        console.error('Edit error:', err);
-        showToast('خطا در ارتباط با سرور.', 'error');
-    }
-
-    document.getElementById('neurame-edit-modal').style.display = 'none';
 });
