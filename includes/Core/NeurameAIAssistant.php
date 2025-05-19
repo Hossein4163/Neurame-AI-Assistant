@@ -611,8 +611,6 @@ class NeurameAIAssistant
                 if (in_array('trainer', $roles, true) || current_user_can('manage_options')) {
                     $new_items['trainer-reports'] = esc_html__('گزارشات', 'neurame-ai-assistant');
                 }
-
-                $new_items['chatbot'] = esc_html__('🤖 چت‌بات هوشمند', 'neurame-ai-assistant');
             }
         }
 
@@ -2574,9 +2572,10 @@ EOD;
         ?>
         <div id="neurame-chat-icon" class="neurame-chat-icon">💬</div>
         <div id="neurame-chat-widget" class="neurame-chat-widget hidden">
+            <button id="close-chat" style="position:absolute;top:5px;right:5px;">❌</button>
             <div id="chat-messages" class="chat-messages"></div>
             <form id="chatbot-form" class="chat-form">
-                <input type="text" id="chat-input" placeholder="پیام خود را بنویسید..."/>
+                <input type="text" id="chat-input" placeholder="سؤالت رو اینجا بنویس..."/>
                 <button type="submit">ارسال</button>
             </form>
         </div>

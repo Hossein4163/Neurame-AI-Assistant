@@ -1,3 +1,4 @@
+/* 🧠 کانتینر اصلی چت‌بات */
 #chatbot-container {
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(20px);
@@ -5,58 +6,28 @@
     padding: 20px;
     max-width: 600px;
     margin: auto;
-    color: #f0f0f0;
-    font-size: 15px;
-    line-height: 1.8;
-    font-family: 'IRANSans', 'Vazirmatn', sans-serif;
+    color: #fff;
 }
 
+/* 👤 پیام کاربر */
 .chat-user {
-    background: rgba(0, 255, 200, 0.15);
-    padding: 12px 16px;
+    background: rgba(0, 255, 200, 0.2);
+    padding: 10px;
     border-radius: 20px;
-    margin: 8px 0;
+    margin: 5px 0;
     text-align: right;
-    color: #e6fff9;
-    font-weight: 500;
 }
 
+/* 🤖 پاسخ هوش مصنوعی */
 .chat-ai {
-    background: rgba(255, 50, 100, 0.15);
-    padding: 12px 16px;
+    background: rgba(255, 50, 100, 0.2);
+    padding: 10px;
     border-radius: 20px;
-    margin: 8px 0;
+    margin: 5px 0;
     text-align: left;
-    color: #ffeef0;
-    font-weight: 500;
 }
 
-.chat-messages {
-    flex: 1;
-    padding: 12px;
-    overflow-y: auto;
-    font-size: 15px;
-    line-height: 1.8;
-}
-
-.chat-form input {
-    flex: 1;
-    padding: 12px;
-    border: none;
-    outline: none;
-    font-size: 15px;
-    font-family: inherit;
-}
-
-.chat-form button {
-    padding: 12px 18px;
-    border: none;
-    background-color: #00bfa5;
-    color: white;
-    cursor: pointer;
-    font-weight: bold;
-}
-
+/* 💬 آیکن شناور برای باز کردن چت‌بات */
 .neurame-chat-icon {
     position: fixed;
     bottom: 20px;
@@ -74,6 +45,7 @@
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
+/* 🪟 باکس چت‌بات (پاپ‌آپ) */
 .neurame-chat-widget {
     position: fixed;
     bottom: 90px;
@@ -81,6 +53,7 @@
     width: 300px;
     max-height: 400px;
     background: white;
+    backdrop-filter: blur(10px);
     border-radius: 15px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
     overflow: hidden;
@@ -90,15 +63,16 @@
     transition: opacity 0.3s ease, transform 0.3s ease;
     opacity: 1;
     transform: scale(1);
-    backdrop-filter: blur(10px);
 }
 
+/* 🔒 حالت مخفی برای ویجت */
 .neurame-chat-widget.hidden {
     opacity: 0;
     transform: scale(0.95);
     pointer-events: none;
 }
 
+/* 📩 ناحیه پیام‌ها */
 .chat-messages {
     flex: 1;
     padding: 10px;
@@ -106,8 +80,21 @@
     font-size: 14px;
 }
 
+/* 📝 فرم ارسال پیام */
 .chat-form {
     display: flex;
     border-top: 1px solid #ddd;
 }
-
+.chat-form input {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    outline: none;
+}
+.chat-form button {
+    padding: 10px 15px;
+    border: none;
+    background-color: #00bfa5;
+    color: white;
+    cursor: pointer;
+}
