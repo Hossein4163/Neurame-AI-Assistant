@@ -3,7 +3,7 @@
 namespace Neurame\Core;
 
 use Neurame\Utils\Logger;
-use Throwable;
+use Throwable as ThrowableAlias;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -53,7 +53,6 @@ class NeurameAIAssistant
         add_action('wp_ajax_nopriv_neurame_delete_trainer_report', '__return_false'); // فقط برای امنیت
         add_action('wp_ajax_nopriv_neurame_update_trainer_report', '__return_false'); // فقط برای امنیت
 
-
         add_action('woocommerce_account_trainer-reports_endpoint', [$this, 'render_trainer_report_endpoint']);
 
         add_action('wp_ajax_neurame_update_child', [$this, 'ajax_update_child']);
@@ -72,6 +71,10 @@ class NeurameAIAssistant
             wp_schedule_event(time(), 'hourly', 'neurame_clean_logs_hourly');
         }
         add_action('neurame_clean_logs_hourly', [$this, 'clean_log_files']);
+
+        add_action('wp_ajax_neurame_chatbot_ask', [$this, 'handle_chatbot_request']);
+
+        add_action('wp_footer', [$this, 'render_chatbot_widget']);
     }
 
     public function register_shortcodes()
@@ -304,6 +307,8 @@ class NeurameAIAssistant
             $assets_version = '1.2.0';
             $script_dependencies = ['jquery'];
 
+            wp_enqueue_style('neurame-chatbot-style', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-chatbot.css');
+            wp_enqueue_script('neurame-chatbot-script', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-chatbot.js', $script_dependencies, $assets_version, true);
             wp_enqueue_style('neurame-frontend', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-styles.css', [], $assets_version);
             wp_enqueue_script('neurame-report-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-report.js', $script_dependencies, $assets_version, true);
             wp_enqueue_script('neurame-child-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-child.js', $script_dependencies, $assets_version, true);
@@ -314,6 +319,7 @@ class NeurameAIAssistant
                 'nonce_get_children' => wp_create_nonce('neurame_get_children'),
                 'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'),
                 'ai_nonce' => wp_create_nonce('neurame_ai_recommendation'),
+                'nonce_chatbot' => wp_create_nonce('neurame_chatbot_nonce'),
                 'nonce_get_reports' => wp_create_nonce('neurame_get_reports'),
                 'nonce_save_parent_info' => wp_create_nonce('neurame_save_parent_info'),
                 'nonce_fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info'),
@@ -325,6 +331,7 @@ class NeurameAIAssistant
 
             wp_localize_script('neurame-report-scripts', 'neurame_vars', $vars);
             wp_localize_script('neurame-child-scripts', 'neurame_vars', $vars);
+            wp_localize_script('neurame-chatbot-script', 'neurame_vars', $vars);
         }
     }
 
@@ -604,6 +611,8 @@ class NeurameAIAssistant
                 if (in_array('trainer', $roles, true) || current_user_can('manage_options')) {
                     $new_items['trainer-reports'] = esc_html__('گزارشات', 'neurame-ai-assistant');
                 }
+
+                $new_items['chatbot'] = esc_html__('🤖 چت‌بات هوشمند', 'neurame-ai-assistant');
             }
         }
 
@@ -817,7 +826,7 @@ class NeurameAIAssistant
 
         try {
             $ai_response = $this->fetch_ai_recommendation($data);
-        } catch (Throwable $e) {
+        } catch (ThrowableAlias $e) {
             Logger::info('❌ AI Recommendation Exception: ' . $e->getMessage() . ' | Stack Trace: ' . $e->getTraceAsString());
             wp_send_json_error(['message' => __('یک خطای داخلی رخ داد.', 'neurame-ai-assistant')], 500);
         }
@@ -943,7 +952,7 @@ class NeurameAIAssistant
                 'courses' => $valid_courses,
             ]);
 
-        } catch (Throwable $e) {
+        } catch (ThrowableAlias $e) {
             Logger::info('❌ fetch_ai_recommendation Exception: ' . $e->getMessage());
             return $this->send_json_response(false, __('خطای داخلی در پردازش API: ', 'neurame-ai-assistant') . $e->getMessage());
         }
@@ -1054,18 +1063,20 @@ class NeurameAIAssistant
                 return ['success' => false, 'data' => 'کلید API ChatGPT تنظیم نشده.'];
             }
 
-            $endpoint = 'https://api.openai.com/v1/completions';
+            $endpoint = 'https://api.openai.com/v1/chat/completions';
             $body = [
-                'model' => 'text-davinci-003',
-                'prompt' => $prompt,
-                'max_tokens' => 200,
+                'model' => 'gpt-4.1', // معادل gpt-4.1
+                'messages' => [
+                    ['role' => 'system', 'content' => 'You are a helpful assistant.'],
+                    ['role' => 'user', 'content' => $prompt],
+                ],
+                'max_tokens' => 500,
                 'temperature' => 0.7,
             ];
             $headers = [
                 'Authorization' => 'Bearer ' . $api_key,
                 'Content-Type' => 'application/json',
             ];
-
         } elseif ($api_type === 'gemini') {
             $api_key = $settings['neurame_gemini_api_key'] ?? '';
             if (empty($api_key)) {
@@ -1085,7 +1096,6 @@ class NeurameAIAssistant
             $headers = [
                 'Content-Type' => 'application/json',
             ];
-
         } else {
             return ['success' => false, 'data' => 'هیچ API هوش مصنوعی انتخاب نشده است.'];
         }
@@ -1104,22 +1114,21 @@ class NeurameAIAssistant
         $resp_body = wp_remote_retrieve_body($response);
         $data = json_decode($resp_body, true);
 
-        // لاگ پاسخ برای دیباگ
         Logger::info('📦 Raw AI Response: ' . $resp_body);
 
         if ($api_type === 'chatgpt') {
-            if (isset($data['choices'][0]['text'])) {
-                return ['success' => true, 'data' => trim($data['choices'][0]['text'])];
+            if (isset($data['choices'][0]['message']['content'])) {
+                return ['success' => true, 'data' => trim($data['choices'][0]['message']['content'])];
+            } else {
+                return ['success' => false, 'data' => 'پاسخ chatgpt معتبر نیست.'];
             }
         }
 
         if ($api_type === 'gemini') {
-            // بررسی خروجی برای Gemini
             if (isset($data['candidates'][0]['output'])) {
                 return ['success' => true, 'data' => trim($data['candidates'][0]['output'])];
             }
 
-            // بررسی اینکه پاسخ از "parts" آمده
             if (isset($data['candidates'][0]['content']['parts']) && is_array($data['candidates'][0]['content']['parts'])) {
                 $parts = $data['candidates'][0]['content']['parts'];
                 $text = '';
@@ -1131,11 +1140,9 @@ class NeurameAIAssistant
                 return ['success' => true, 'data' => trim($text)];
             }
 
-            // اگر هیچ کدام از این دو حالت نیامد، داده معتبر نیست
             return ['success' => false, 'data' => 'پاسخ Gemini در فرمت معتبر نیامد.'];
         }
 
-        // اگر هیچ پاسخ معتبری دریافت نشد
         return [
             'success' => false,
             'data' => 'پاسخ معتبر از API دریافت نشد: ' . $resp_body,
@@ -1155,6 +1162,7 @@ class NeurameAIAssistant
         // آدرس: /my-account/neurame-dashboard/
         add_rewrite_endpoint('neurame-dashboard', EP_PAGES);
         add_rewrite_endpoint('trainer-reports', EP_PAGES);
+        add_rewrite_endpoint('chatbot', EP_ROOT | EP_PAGES);
 
         $added = true;
     }
@@ -2412,5 +2420,166 @@ EOD;
         update_user_meta($user_id, 'neurame_children', array_values($children));
 
         wp_send_json_success(['message' => 'کودک حذف شد.']);
+    }
+
+    private function analyze_reports($reports)
+    {
+        $skills = [
+            'focus' => 0,
+            'logic' => 0,
+            'problem' => 0,
+            'conversation' => 0,
+            'creativity' => 0,
+        ];
+        $count = count($reports);
+        if ($count === 0) return null;
+
+        foreach ($reports as $report) {
+            foreach (array_keys($skills) as $key) {
+                $val = get_post_meta($report->ID, $key, true);
+                $skills[$key] += intval($val);
+            }
+        }
+
+        // میانگین بگیر
+        foreach ($skills as $k => $v) {
+            $skills[$k] = round($v / $count);
+        }
+
+        return $skills;
+    }
+
+    public function handle_chatbot_request()
+    {
+        check_ajax_referer('neurame_chatbot_nonce', 'nonce');
+
+        $user_id = get_current_user_id();
+        $message = sanitize_text_field($_POST['message']);
+
+        if (!$user_id || empty($message)) {
+            wp_send_json_error('داده نامعتبر');
+        }
+
+        $children = get_user_meta($user_id, 'neurame_children', true);
+        if (!$children || !is_array($children)) {
+            wp_send_json_success('هیچ اطلاعاتی از فرزندان یافت نشد.');
+        }
+
+        $all_reports = get_option('neurame_trainer_reports', []);
+        $child_reports = [];
+
+        foreach ($children as $index => $child) {
+            $child_id = $user_id . '_' . $index;
+            $reports = array_filter($all_reports, fn($r) => $r['child_id'] === $child_id);
+            $skills = $this->analyze_child_skills($reports);
+            $child_reports[] = [
+                'child' => array_merge($child, ['id' => $child_id]),
+                'reports' => $reports,
+                'skills' => $skills
+            ];
+        }
+
+        $all_courses = wc_get_products(['limit' => -1, 'status' => 'publish']);
+        $course_map = [];
+        foreach ($all_courses as $course) {
+            $course_map[$course->get_id()] = [
+                'title' => $course->get_name(),
+                'skill' => get_post_meta($course->get_id(), 'neurame_course_skill', true),
+                'link' => get_permalink($course->get_id()),
+            ];
+        }
+
+        foreach ($child_reports as &$data) {
+            $attended = [];
+            foreach ($data['reports'] as $r) {
+                $cid = $r['course_id'] ?? null;
+                if ($cid && isset($course_map[$cid])) {
+                    $attended[] = $course_map[$cid];
+                }
+            }
+            $data['courses_attended'] = $attended;
+        }
+
+        $history = get_user_meta($user_id, 'neurame_chat_history', true);
+        if (!is_array($history)) $history = [];
+
+        $chat_log = "";
+        foreach ($history as $entry) {
+            $role = $entry['role'] === 'user' ? '👤 کاربر' : '🤖 شما';
+            $chat_log .= "{$role}: {$entry['message']}\n";
+        }
+
+        // 🧠 ساخت prompt
+        $prompt = "شما یک دستیار آموزشی هوشمند هستید. اطلاعات زیر واقعی و دقیق هستند. اگر پیام والد به موارد زیر مرتبط بود، پاسخ را بر اساس آن‌ها بده.\n\n";
+        $prompt .= "👶 فرزندان:\n";
+        foreach ($child_reports as $data) {
+            $c = $data['child'];
+            $skills = $data['skills'];
+            $prompt .= "- نام: {$c['name']}, سن: {$c['age']}, علاقه‌مندی‌ها: {$c['interests']}\n";
+            if (!empty($skills)) {
+                $prompt .= "  مهارت‌ها:";
+                foreach ($skills as $k => $v) {
+                    $prompt .= " {$k}: {$v}/100;";
+                }
+                $prompt .= "\n";
+            }
+            if (!empty($data['courses_attended'])) {
+                $prompt .= "  دوره‌های گذرانده‌شده:\n";
+                foreach ($data['courses_attended'] as $crs) {
+                    $prompt .= "    - {$crs['title']} (مهارت: {$crs['skill']}) → {$crs['link']}\n";
+                }
+            }
+        }
+
+        $prompt .= "\n📚 دوره‌های موجود:\n";
+        foreach ($course_map as $course) {
+            $prompt .= "- {$course['title']} (مهارت: {$course['skill']}) → {$course['link']}\n";
+        }
+
+        $prompt .= "\n💬 گفت‌وگوی قبلی:\n{$chat_log}";
+        $prompt .= "\n📩 پیام جدید:\n\"{$message}\"\n";
+        $prompt .= "\n✅ فقط از اطلاعات بالا استفاده کن و پاسخ دقیق و هدفمند بده. هرگز نگویید اطلاعاتی در دسترس نیست.";
+
+        // 🪵 لاگ داخلی در debug.log
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log("🔍 PROMPT sent to AI:\n" . $prompt);
+        }
+
+        // 🧠 فراخوانی AI
+        $settings = get_option('neurame_settings', []);
+        $ai_response = $this->call_ai_api($prompt, $settings);
+
+        if (!$ai_response['success']) {
+            wp_send_json_success("❌ پاسخ هوش مصنوعی در دسترس نیست: " . $ai_response['data']);
+        }
+
+        // 💾 ذخیره در تاریخچه
+        $history[] = ['role' => 'user', 'message' => $message];
+        $history[] = ['role' => 'ai', 'message' => $ai_response['data']];
+        update_user_meta($user_id, 'neurame_chat_history', $history);
+
+        // 📤 پاسخ همراه با پرامپت (برای نمایش در کنسول مرورگر)
+        $response = ['reply' => $ai_response['data']];
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            $response['debug_prompt'] = $prompt;
+        }
+
+        wp_send_json_success($response);
+    }
+
+    public function render_chatbot_widget()
+    {
+        if (!is_user_logged_in()) return;
+
+        ?>
+        <div id="neurame-chat-icon" class="neurame-chat-icon">💬</div>
+        <div id="neurame-chat-widget" class="neurame-chat-widget hidden">
+            <div id="chat-messages" class="chat-messages"></div>
+            <form id="chatbot-form" class="chat-form">
+                <input type="text" id="chat-input" placeholder="پیام خود را بنویسید..."/>
+                <button type="submit">ارسال</button>
+            </form>
+        </div>
+        <?php
     }
 }
