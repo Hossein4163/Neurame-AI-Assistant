@@ -74,7 +74,7 @@ class NeurameAIAssistant
 
         add_action('wp_ajax_neurame_chatbot_ask', [$this, 'handle_chatbot_request']);
 
-        add_action('wp_footer', [$this, 'render_chatbot_widget']);
+        add_action('wp_footer', [$this, 'render_chatbot_widget'], 99);
     }
 
     public function register_shortcodes()
@@ -301,38 +301,45 @@ class NeurameAIAssistant
 
     public function enqueue_scripts()
     {
-        global $neurame_ai_shortcode_loaded;
+        // 👇 این شرط رو اضافه کن تا فقط کاربران لاگین‌شده اسکریپت ببینن
+        if (!is_user_logged_in()) {
+            return;
+        }
 
-        if (is_account_page() || !empty($neurame_ai_shortcode_loaded)) {
-            $assets_version = '1.2.0';
-            $script_dependencies = ['jquery'];
+        $assets_version = '1.2.0';
+        $script_dependencies = ['jquery'];
 
-            wp_enqueue_style('neurame-chatbot-style', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-chatbot.css');
-            wp_enqueue_script('neurame-chatbot-script', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-chatbot.js', $script_dependencies, $assets_version, true);
+        // ✅ همیشه فایل‌های چت‌بات را لود کن
+        wp_enqueue_style('neurame-chatbot-style', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-chatbot.css');
+        wp_enqueue_script('neurame-chatbot-script', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-chatbot.js', $script_dependencies, $assets_version, true);
+
+        // فقط در صفحات خاص، بقیه فایل‌ها هم لود کن (مثل report و child)
+        if (is_account_page() || !empty($GLOBALS['neurame_ai_shortcode_loaded'])) {
             wp_enqueue_style('neurame-frontend', NEURAMEAI_PLUGIN_URL . 'assets/css/neurame-styles.css', [], $assets_version);
             wp_enqueue_script('neurame-report-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-report.js', $script_dependencies, $assets_version, true);
             wp_enqueue_script('neurame-child-scripts', NEURAMEAI_PLUGIN_URL . 'assets/js/neurame-child.js', $script_dependencies, $assets_version, true);
-
-            $vars = [
-                'ajax_url' => admin_url('admin-ajax.php'),
-                'nonce_load_buyers' => wp_create_nonce('neurame_load_buyers'),
-                'nonce_get_children' => wp_create_nonce('neurame_get_children'),
-                'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'),
-                'ai_nonce' => wp_create_nonce('neurame_ai_recommendation'),
-                'nonce_chatbot' => wp_create_nonce('neurame_chatbot_nonce'),
-                'nonce_get_reports' => wp_create_nonce('neurame_get_reports'),
-                'nonce_save_parent_info' => wp_create_nonce('neurame_save_parent_info'),
-                'nonce_fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info'),
-                'nonce_load_trainers' => wp_create_nonce('neurame_load_trainers'),
-                'nonce_load_courses' => wp_create_nonce('neurame_load_courses'),
-                'user_id' => get_current_user_id(),
-                'is_admin' => current_user_can('manage_options')
-            ];
-
-            wp_localize_script('neurame-report-scripts', 'neurame_vars', $vars);
-            wp_localize_script('neurame-child-scripts', 'neurame_vars', $vars);
-            wp_localize_script('neurame-chatbot-script', 'neurame_vars', $vars);
         }
+
+        $vars = [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce_load_buyers' => wp_create_nonce('neurame_load_buyers'),
+            'nonce_get_children' => wp_create_nonce('neurame_get_children'),
+            'nonce_trainer_report' => wp_create_nonce('neurame_trainer_report'),
+            'ai_nonce' => wp_create_nonce('neurame_ai_recommendation'),
+            'nonce_chatbot' => wp_create_nonce('neurame_chatbot_nonce'),
+            'nonce_get_reports' => wp_create_nonce('neurame_get_reports'),
+            'nonce_save_parent_info' => wp_create_nonce('neurame_save_parent_info'),
+            'nonce_fetch_parent_info' => wp_create_nonce('neurame_fetch_parent_info'),
+            'nonce_load_trainers' => wp_create_nonce('neurame_load_trainers'),
+            'nonce_load_courses' => wp_create_nonce('neurame_load_courses'),
+            'user_id' => get_current_user_id(),
+            'is_admin' => current_user_can('manage_options')
+        ];
+
+        // لوکالایز کردن متغیرها برای همه‌ی اسکریپت‌ها
+        wp_localize_script('neurame-chatbot-script', 'neurame_vars', $vars);
+        wp_localize_script('neurame-report-scripts', 'neurame_vars', $vars);
+        wp_localize_script('neurame-child-scripts', 'neurame_vars', $vars);
     }
 
     public function admin_enqueue_scripts($hook)
@@ -2458,6 +2465,20 @@ EOD;
             wp_send_json_error('داده نامعتبر');
         }
 
+        $today = date('Y-m-d');
+        $count_key = 'neurame_chat_count_' . $today;
+        $history_key = 'neurame_chat_history_' . $today;
+
+        // 🔒 محدودیت روزانه پیام به چت‌بات
+        $chat_count = (int)get_user_meta($user_id, $count_key, true);
+        if ($chat_count >= 10) {
+            wp_send_json_success('⛔ شما امروز بیش از ۱۰ پیام به چت‌بات ارسال کرده‌اید. لطفاً فردا دوباره تلاش کنید.');
+        }
+
+        // افزایش شمارنده پیام
+        update_user_meta($user_id, $count_key, $chat_count + 1);
+
+        // 👶 دریافت کودکان
         $children = get_user_meta($user_id, 'neurame_children', true);
         if (!$children || !is_array($children)) {
             wp_send_json_success('هیچ اطلاعاتی از فرزندان یافت نشد.');
@@ -2484,6 +2505,7 @@ EOD;
                 'title' => $course->get_name(),
                 'skill' => get_post_meta($course->get_id(), 'neurame_course_skill', true),
                 'link' => get_permalink($course->get_id()),
+                'headings' => get_post_meta($course->get_id(), '_neurame_ai_headings', true),
             ];
         }
 
@@ -2498,7 +2520,7 @@ EOD;
             $data['courses_attended'] = $attended;
         }
 
-        $history = get_user_meta($user_id, 'neurame_chat_history', true);
+        $history = get_user_meta($user_id, $history_key, true);
         if (!is_array($history)) $history = [];
 
         $chat_log = "";
@@ -2507,8 +2529,9 @@ EOD;
             $chat_log .= "{$role}: {$entry['message']}\n";
         }
 
-        // 🧠 ساخت prompt
+        // 📥 ساخت پرامپت
         $prompt = "شما یک دستیار آموزشی هوشمند هستید. اطلاعات زیر واقعی و دقیق هستند. اگر پیام والد به موارد زیر مرتبط بود، پاسخ را بر اساس آن‌ها بده.\n\n";
+
         $prompt .= "👶 فرزندان:\n";
         foreach ($child_reports as $data) {
             $c = $data['child'];
@@ -2525,20 +2548,31 @@ EOD;
                 $prompt .= "  دوره‌های گذرانده‌شده:\n";
                 foreach ($data['courses_attended'] as $crs) {
                     $prompt .= "    - {$crs['title']} (مهارت: {$crs['skill']}) → {$crs['link']}\n";
+                    if (!empty($crs['headings'])) {
+                        $prompt .= "      سرفصل‌ها:\n" . $crs['headings'] . "\n";
+                    }
                 }
             }
         }
 
-        $prompt .= "\n📚 دوره‌های موجود:\n";
+        $prompt .= "\n📚 تمام دوره‌های موجود:\n";
         foreach ($course_map as $course) {
             $prompt .= "- {$course['title']} (مهارت: {$course['skill']}) → {$course['link']}\n";
+            if (!empty($course['headings'])) {
+                $prompt .= "  سرفصل‌ها:\n" . $course['headings'] . "\n";
+            }
         }
 
         $prompt .= "\n💬 گفت‌وگوی قبلی:\n{$chat_log}";
         $prompt .= "\n📩 پیام جدید:\n\"{$message}\"\n";
-        $prompt .= "\n✅ فقط از اطلاعات بالا استفاده کن و پاسخ دقیق و هدفمند بده. هرگز نگویید اطلاعاتی در دسترس نیست.";
 
-        // 🪵 لاگ داخلی در debug.log
+        $prompt .= "\n✅ فقط از اطلاعات بالا استفاده کن و پاسخ دقیق و هدفمند بده. هرگز نگویید اطلاعاتی در دسترس نیست.";
+        $prompt .= "\n📌 نکات مهم:\n";
+        $prompt .= "- اگر کاربر درخواست قصه یا داستان برای کودک داشت، قصه‌ای متناسب با سن و علاقه‌مندی‌های کودک تعریف کن.\n";
+        $prompt .= "- اگر درباره‌ی محتوای دوره یا سرفصل‌ها سوال شد، از اطلاعات دقیق کلاس‌ها که در اختیار داری استفاده کن.\n";
+        $prompt .= "- اگر والد خواست، یک آزمون ساده و جذاب متناسب با سن و مهارت کودک طراحی کن.\n";
+        $prompt .= "- اگر والد درخواستی خارج از موضوع‌هایی که گفته شد و سایت ساپورت می‌کنه داشت، بگو که امکان پاسخ نیست.\n";
+
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log("🔍 PROMPT sent to AI:\n" . $prompt);
         }
@@ -2554,9 +2588,8 @@ EOD;
         // 💾 ذخیره در تاریخچه
         $history[] = ['role' => 'user', 'message' => $message];
         $history[] = ['role' => 'ai', 'message' => $ai_response['data']];
-        update_user_meta($user_id, 'neurame_chat_history', $history);
+        update_user_meta($user_id, $history_key, $history);
 
-        // 📤 پاسخ همراه با پرامپت (برای نمایش در کنسول مرورگر)
         $response = ['reply' => $ai_response['data']];
         if (defined('WP_DEBUG') && WP_DEBUG) {
             $response['debug_prompt'] = $prompt;
@@ -2567,16 +2600,36 @@ EOD;
 
     public function render_chatbot_widget()
     {
-        if (!is_user_logged_in()) return;
+        $user_id = get_current_user_id();
+        $today = date('Y-m-d');
+        $history_key = 'neurame_chat_history_' . $today;
+        $chat_history = get_user_meta($user_id, $history_key, true);
+        if (!is_array($chat_history)) $chat_history = [];
+
+        echo '<script>window.NeurameChatHistory = ' . json_encode($chat_history, JSON_UNESCAPED_UNICODE) . ';</script>';
 
         ?>
-        <div id="neurame-chat-icon" class="neurame-chat-icon">💬</div>
+        <div id="neurame-chat-icon" class="neurame-chat-icon" title="چت با هوش مصنوعی">
+            <div id="neurame-chat-icon" class="neurame-chat-icon" title="چت با ربات">
+                <!-- آیکن ربات به صورت SVG -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#fff">
+                    <path d="M12 2c-.6 0-1 .4-1 1v1.1c-3.9.5-7 3.8-7 7.9 0 4.4 3.6 8 8 8s8-3.6 8-8c0-4.1-3.1-7.4-7-7.9V3c0-.6-.4-1-1-1zm-3 10c-.6 0-1-.4-1-1s.4-1 1-1
+        1 .4 1 1-.4 1-1 1zm6 0c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1z"/>
+                </svg>
+            </div>
+        </div>
+
         <div id="neurame-chat-widget" class="neurame-chat-widget hidden">
-            <button id="close-chat" style="position:absolute;top:5px;right:5px;">❌</button>
+            <button id="close-chat" class="chat-close-button" title="بستن">❌</button>
             <div id="chat-messages" class="chat-messages"></div>
+
             <form id="chatbot-form" class="chat-form">
                 <input type="text" id="chat-input" placeholder="سؤالت رو اینجا بنویس..."/>
-                <button type="submit">ارسال</button>
+                <button type="submit" id="chat-send-button" title="ارسال پیام">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#fff" viewBox="0 0 24 24">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
             </form>
         </div>
         <?php

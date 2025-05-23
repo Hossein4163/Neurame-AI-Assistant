@@ -33,6 +33,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 📜 نمایش پیام‌های ذخیره‌شده در روز جاری (در window.NeurameChatHistory)
+    if (window.NeurameChatHistory && Array.isArray(window.NeurameChatHistory)) {
+        window.NeurameChatHistory.forEach(entry => {
+            const div = document.createElement('div');
+            div.className = entry.role === 'user' ? 'chat-user' : 'chat-ai';
+            div.textContent = entry.message;
+            messages.appendChild(div);
+        });
+        messages.scrollTop = messages.scrollHeight;
+    }
+
     // 📩 ارسال پیام کاربر
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
